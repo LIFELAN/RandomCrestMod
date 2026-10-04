@@ -12,15 +12,12 @@
 
 最近提交：
 ```
-854219a Cancel a random bind that enters surface water
-c48f0c8 Re-acquire the HUD frame overlay on save load / scene init
-a8ee1ee Tune random-tool icon size to ppu 390
-475ce33 Enlarge the random-tool HUD icon to match the spell icon
-641b9f4 Widen the random-tool icon circle slightly
-3432d2c Brighten the Chaos HUD frame and round the random-tool icon
-c4b032a Wait out the post-release sprint skid before swapping the crest config
-6fb3e56 Remove the cursed-bind feature and all of its workarounds
-81c93ab Exclude the mod crest from game completion percentage
+43e1add Let the Flea Charm stack with the Chaos silk discount
+7af9189 Correct the skid-bind trade-off note
+eb44157 Release v0.1.1
+90f0329 Drop redundant suffix from the mod's proper name
+dff0ccc Fix HUD frame stuck hidden after switching crests
+68c0e1e Add developer handover notes
 ```
 
 ## 二、模组基本定义
