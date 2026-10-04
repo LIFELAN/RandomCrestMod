@@ -57,7 +57,8 @@ c4b032a Wait out the post-release sprint skid before swapping the crest config
   - 换配置会触发 `HC CONFIG UPDATED` → 全局取消 Sprint FSM → 卡死漂浮，所以：
     - `ApplyIfRequested` / `ApplyForBind` / `EndBind` / `Tick` 全部用 `IsSprintOrSkid` 判断；
     - **滑步中缚丝用“静默换配置”（`ApplyGroup(hero, group, quiet:true)`）**，不触发 `HC CONFIG UPDATED`，Sprint FSM 继续跑；
-    - 代价（已知取舍）：滑步那一次缚丝可能拿不到纹章专属状态（野兽狂暴/收割模式），站立缚丝完全正常。
+    - 静默换配置不通知 Sprint FSM，所以它缓存的冲刺劈砍对象/数值（`Dash Stab`、`Attack Speed/Time/Steps`）不会因这次绑定而刷新；普通劈砍与 Bind 本身不读它们，下一次冲刺劈砍时 `OnAttackCounterForDash` 会重掷并 `SetDashStabVariables` 刷新。
+    - 旧文档里“滑步缚丝拿不到 Rage/Reaper”其实是 `TickDash` 提前 `Restore` 的 bug（`Send Bind Event` 在 `End Bind` 之前调用 `BindCompleted`），已在 v0.1.1 修掉（`TickDash` 有 `_active/_nailArtActive/_bindActive` 时不恢复），现在站立/疾风步/滑步缚丝都能拿到。
   - **普通劈砍也能随机了**（本次）：以前 `ApplyIfRequested` 在 `IsSprintOrSkid` 时直接 `return`，导致疾风步/空中疾风步/滑步里的普通、上、下劈砍完全不随机。现在改成同样用**静默换配置**（`ApplyGroup(..., quiet: IsSprintOrSkid(hero))`），并：
     - `Tick` 的 `_active` 分支里，若 `_dashActive && IsSprintOrSkid` 则暂停恢复（5s 超时兜底），避免恢复时发 `HC CONFIG UPDATED` 把 Sprint FSM 取消；“刚起步的冲刺”仍走原来的 `!_dashActive` 提前恢复逻辑；
     - `OnAttackCounterForDash` 加 `_pending` 门禁：普通攻击的 `IncrementAttackCounter` 不再多掷一次（那次会被紧接着的 `UpdateConfig` 覆盖），只有 Sprint FSM 真正的冲刺劈砍才重掷。
@@ -124,7 +125,7 @@ c4b032a Wait out the post-release sprint skid before swapping the crest config
 - [x] 野兽/收割者疾风步/滑步缚丝正常获得 Rage/Reaper buff（同一根因：`TickDash` 提前 `Restore`）。
 - [x] 疾风步/空中疾风步/滑步里的普通、上、下劈砍也随机（`ApplyIfRequested` 改为静默换配置）。
 - [x] 纷乱法术费用降为 3 格（`PlayerDataSilkSkillCostPatch`）。
-- [ ] 滑步缚丝缺纹章专属状态：当前是已知取舍；若要修需同步两个 FSM，风险高。
+- [ ] （可选）滑步缚丝时 Sprint FSM 的缓存冲刺劈砍对象不会随 bind 刷新；目前靠下一次冲刺劈砍重掷兜底，未发现可见问题。
 - [ ] （可选）SilkCurseMod 兼容：让 SilkCurseMod 在装备纷乱时让路。
 - [ ] （可选）随机结果临时日志，验证 7 纹章均匀分布。
 - [ ] （可选）把法术费用 / 其它写死参数做成配置项（目前按设计全写死）。
