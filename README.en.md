@@ -93,6 +93,8 @@ Config file: `BepInEx/config/io.github.lifelan.randomcrestmod.cfg`
 - A random bind requires a **full spool (9 silk)**; with less silk it behaves like the vanilla
   "not enough silk" message and never hangs.
 - The cursed bind plays the game's own cursed sequence and does **not** consume silk.
+- The Chaos crest does **not** count toward the game's completion percentage (other crests, tools
+  and skills are unaffected).
 
 ---
 

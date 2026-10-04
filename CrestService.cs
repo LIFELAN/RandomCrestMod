@@ -70,6 +70,19 @@ internal static class CrestService
         return PlayerData.HasInstance && PlayerData.instance.CurrentCrestID == CrestName;
     }
 
+    /// <summary>
+    /// True while the game's crest counters include the mod crest. The mod crest is unlocked from
+    /// the start, so without this the game would count it towards the completion percentage.
+    /// </summary>
+    internal static bool CountsTowardCompletion
+    {
+        get
+        {
+            var crest = GetCrest();
+            return crest != null && !crest.IsHidden && crest.IsBaseVersion && crest.IsUnlocked;
+        }
+    }
+
     internal static ToolCrest? GetCrest()
     {
         return ToolItemManager.GetCrestByName(CrestName);

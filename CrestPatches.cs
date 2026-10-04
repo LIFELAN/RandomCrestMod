@@ -29,4 +29,20 @@ internal static class CrestPatches
         CrestService.EnsureCreated();
         CrestService.EnsureUnlocked();
     }
+
+    /// <summary>
+    /// <c>PlayerData.CountGameCompletion</c> adds <c>GetUnlockedCrestsCount() - 1</c>, which
+    /// includes the always-unlocked mod crest. Remove exactly that one point so the mod crest does
+    /// not inflate the save completion percentage. (The ALL_CRESTS achievement is left alone -
+    /// because the mod crest is always unlocked its numerator and denominator stay balanced.)
+    /// </summary>
+    [HarmonyPatch(typeof(PlayerData), nameof(PlayerData.CountGameCompletion))]
+    [HarmonyPostfix]
+    private static void PlayerData_CountGameCompletion_Postfix(PlayerData __instance)
+    {
+        if (CrestService.CountsTowardCompletion)
+        {
+            __instance.completionPercentage -= 1f;
+        }
+    }
 }
