@@ -34,6 +34,9 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 
     internal static readonly bool OnlyOnRandomCrest = true;
 
+    /// <summary>Silk cost of every silk skill while the mod crest's random spells are active.</summary>
+    internal static readonly int RandomSpellSilkCost = 3;
+
     internal static readonly bool DebugLogging = false;
 
     internal static readonly float HudFrameOffsetX = -0.84f;
@@ -68,6 +71,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
         _harmony.PatchAll(typeof(DidUseAttackToolPatch));
         _harmony.PatchAll(typeof(TryReplenishToolsPatch));
         _harmony.PatchAll(typeof(RandomToolSaveLoadedPatch));
+        _harmony.PatchAll(typeof(PlayerDataSilkSkillCostPatch));
         _harmony.PatchAll(typeof(ToolHudIconSpritePatch));
         _harmony.PatchAll(typeof(RadialHudIconColourPatch));
 

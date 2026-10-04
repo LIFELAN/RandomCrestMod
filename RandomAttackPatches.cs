@@ -1,4 +1,5 @@
 using GlobalEnums;
+using GlobalSettings;
 using HarmonyLib;
 using UnityEngine;
 
@@ -39,10 +40,65 @@ internal static class RandomAttackPatches
     [HarmonyPostfix]
     private static void ToolCrest_IsEquipped_Postfix(ToolCrest __instance, ref bool __result)
     {
+        // Surface-water safety net: while a random Shaman air bind is falling into water, pretend
+        // the Spell crest is equipped for the duration of the water trigger so the water catches
+        // the hero instead of rejecting them (which would let them tunnel out of the scene).
+        if (RandomAttackService.ForceSpellCrestForWater)
+        {
+            try
+            {
+                if (ReferenceEquals(Gameplay.SpellCrest, __instance))
+                {
+                    __result = true;
+                    return;
+                }
+            }
+            catch
+            {
+                // Gameplay settings not ready; fall through to the normal spoof.
+            }
+        }
+
         if (RandomAttackService.IsSpoofing)
         {
             __result = ReferenceEquals(__instance, RandomAttackService.SpoofCrest);
         }
+    }
+
+    /// <summary>
+    /// The game's <c>SurfaceWaterRegion</c> pushes a binding hero out of the water unless the Spell
+    /// (Shaman) crest is equipped. A randomly rolled Shaman air bind is in the <c>Shaman Fall</c>
+    /// state and keeps re-applying its own downward velocity, so the one-off push is not enough and
+    /// the hero falls straight through. When the Bind FSM is in a Shaman air state, force the water
+    /// to take its normal entry path for the duration of the trigger.
+    /// </summary>
+    [HarmonyPatch(typeof(SurfaceWaterRegion), "OnTriggerEnter2D")]
+    [HarmonyPrefix]
+    private static void SurfaceWaterRegion_OnTriggerEnter2D_Prefix(Collider2D collision)
+    {
+        try
+        {
+            if (collision == null || !RandomCrestModPlugin.EnableRandomBind)
+            {
+                RandomAttackService.ForceSpellCrestForWater = false;
+                return;
+            }
+
+            var hero = collision.GetComponent<HeroController>();
+            RandomAttackService.ForceSpellCrestForWater =
+                hero != null && hero.cState.isBinding && RandomAttackService.IsShamanAirBind(hero);
+        }
+        catch
+        {
+            RandomAttackService.ForceSpellCrestForWater = false;
+        }
+    }
+
+    [HarmonyPatch(typeof(SurfaceWaterRegion), "OnTriggerEnter2D")]
+    [HarmonyPostfix]
+    private static void SurfaceWaterRegion_OnTriggerEnter2D_Postfix()
+    {
+        RandomAttackService.ForceSpellCrestForWater = false;
     }
 
     /// <summary>

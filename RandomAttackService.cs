@@ -101,22 +101,18 @@ internal static class RandomAttackService
                 return;
             }
 
-            // Sprint / dash / sprint-attack / air-dash are all driven by the "Sprint" FSM, which
-            // grabs its attack object while it runs. Swapping the crest underneath it strands that
-            // FSM (control stays relinquished and gravity stays off), so leave those alone - this
-            // includes the post-release skid, where cState is already clear but the FSM is not.
-            if (IsSprintOrSkid(hero))
-            {
-                return;
-            }
-
+            // Sprint / dash / air-dash are driven by the "Sprint" FSM. We used to skip random
+            // attacks entirely here, which meant a normal / up / down slash during (or just out
+            // of) a sprint never randomised. Swap *quietly* instead: firing "HC CONFIG UPDATED"
+            // would globally cancel the Sprint FSM, but a quiet swap leaves it running (same
+            // trick as the dash re-roll).
             var group = PickGroup(hero, _pendingDir, _pendingWallSlide);
             if (group == null)
             {
                 return;
             }
 
-            ApplyGroup(hero, group);
+            ApplyGroup(hero, group, quiet: IsSprintOrSkid(hero));
 
             _active = true;
             _activateTime = Time.time;
@@ -243,6 +239,33 @@ internal static class RandomAttackService
         Restore(hero);
     }
 
+    /// <summary>
+    /// True while the game's Bind FSM is in the Spell (Shaman) air-dive states. Used by the
+    /// surface-water safety net: the reject branch only nudges the hero up once, but the Shaman
+    /// Fall state keeps re-applying its own downward velocity, so without this the hero tunnels
+    /// through the water and out of the scene.
+    /// </summary>
+    internal static bool IsShamanAirBind(HeroController hero)
+    {
+        try
+        {
+            _bindFsm ??= FSMUtility.LocateFSM(hero.gameObject, "Bind");
+            var state = _bindFsm != null ? _bindFsm.ActiveStateName : null;
+            return state == "Shaman Air" || state == "Shaman Fall";
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// While true, the Spell (Shaman) crest is reported as equipped so
+    /// <c>SurfaceWaterRegion.OnTriggerEnter2D</c> takes its water-entry path instead of the reject
+    /// branch. Set only for the duration of that call.
+    /// </summary>
+    internal static bool ForceSpellCrestForWater { get; set; }
+
     /// <summary>Cancels the game's Bind FSM (used to end a random bind stuck in water).</summary>
     private static void CancelBindFsm(HeroController hero)
     {
@@ -344,10 +367,20 @@ internal static class RandomAttackService
             var crestState = crestFsm != null ? crestFsm.ActiveStateName : null;
             var crestBusy = !string.IsNullOrEmpty(crestState) && crestState != "Idle";
 
-            // If the player starts sprinting / dashing while a random attack is still installed,
-            // put the real crest back before the Sprint FSM picks up its attack object, otherwise
-            // the FSM and the active config disagree and the dash state can strand.
-            if (IsSprintOrDash(cs) && !crestBusy)
+            // A sprint that we already randomised (quiet swap) owns the spoof now: keep it until
+            // the Sprint FSM goes Idle, because restoring fires "HC CONFIG UPDATED" which would
+            // cancel the still-running FSM and strand the hero. 5s timeout as a safety net.
+            if (_dashActive && IsSprintOrSkid(hero) && elapsed < 5f)
+            {
+                return;
+            }
+
+            // If the player starts a *fresh* sprint / dash while a random attack is still
+            // installed, put the real crest back before the Sprint FSM picks up its attack
+            // object, otherwise the FSM and the active config disagree and the dash state can
+            // strand. (When _dashActive already owns the sprint this is unnecessary and we would
+            // be cancelling that very sprint.)
+            if (!_dashActive && IsSprintOrDash(cs) && !crestBusy)
             {
                 Restore(hero);
                 return;
@@ -484,6 +517,15 @@ internal static class RandomAttackService
             return;
         }
 
+        // A bind / attack now owns the spoof. Let its own logic release it: restoring here would
+        // clear the crest spoof before the bind's later crest checks run (e.g. BindCompleted for
+        // Beast rage / Reaper mode), and can also drop the Spell (Shaman) spoof before the water
+        // region sees it, letting an air bind tunnel through surface water.
+        if (_active || _nailArtActive || _bindActive)
+        {
+            return;
+        }
+
         // Give the Sprint FSM a short grace period before putting the real crest back.
         if (Time.time - _dashLastActive > 0.25f || Time.time - _activateTime > 10f)
         {
@@ -528,7 +570,7 @@ internal static class RandomAttackService
     /// </summary>
     internal static void OnAttackCounterForDash()
     {
-        if (!_dashActive || !RandomCrestModPlugin.EnableRandomAttacks)
+        if (!_dashActive || _pending || !RandomCrestModPlugin.EnableRandomAttacks)
         {
             return;
         }

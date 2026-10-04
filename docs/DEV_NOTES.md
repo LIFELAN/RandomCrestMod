@@ -3,7 +3,7 @@
 > 这份是给后续（重启对话后）的自己和 AI 用的开发笔记，记录**现状、关键决定、坑和待办**。
 > 面向玩家的说明见仓库根目录 `README.md` / `README.en.md`。
 
-## 一、当前状态（截至最后一次提交 `854219a`）
+## 一、当前状态（截至 v0.1.1）
 
 - 编译：`dotnet build -c Debug`，**0 警告 0 错误**。
 - 已安装：`<游戏>/BepInEx/plugins/lifelan-RandomCrestMod/RandomCrestMod.dll`（构建会自动复制）。
@@ -58,6 +58,9 @@ c4b032a Wait out the post-release sprint skid before swapping the crest config
     - `ApplyIfRequested` / `ApplyForBind` / `EndBind` / `Tick` 全部用 `IsSprintOrSkid` 判断；
     - **滑步中缚丝用“静默换配置”（`ApplyGroup(hero, group, quiet:true)`）**，不触发 `HC CONFIG UPDATED`，Sprint FSM 继续跑；
     - 代价（已知取舍）：滑步那一次缚丝可能拿不到纹章专属状态（野兽狂暴/收割模式），站立缚丝完全正常。
+  - **普通劈砍也能随机了**（本次）：以前 `ApplyIfRequested` 在 `IsSprintOrSkid` 时直接 `return`，导致疾风步/空中疾风步/滑步里的普通、上、下劈砍完全不随机。现在改成同样用**静默换配置**（`ApplyGroup(..., quiet: IsSprintOrSkid(hero))`），并：
+    - `Tick` 的 `_active` 分支里，若 `_dashActive && IsSprintOrSkid` 则暂停恢复（5s 超时兜底），避免恢复时发 `HC CONFIG UPDATED` 把 Sprint FSM 取消；“刚起步的冲刺”仍走原来的 `!_dashActive` 提前恢复逻辑；
+    - `OnAttackCounterForDash` 加 `_pending` 门禁：普通攻击的 `IncrementAttackCounter` 不再多掷一次（那次会被紧接着的 `UpdateConfig` 覆盖），只有 Sprint FSM 真正的冲刺劈砍才重掷。
 - 不要再用 `SPRINT CANCEL` + 延迟 的方案（实测会把大黄蜂弄成"跑出场景、失控"）。
 - `ReaperPayoutPatch`：随机缚丝进 Reaper 模式时，临时把 `CurrentCrestID="Reaper"` 让回丝结算生效（`HealthManager.TakeDamage` prefix/postfix）。
 - `RandomCrestAnimationLibrary` + `AnimationFallbackPatches`：合并所有纹章的动画库，兜底 `HeroAnimationController.GetClip`，并屏蔽 `Could not resolve animation clip` 日志洪水。
@@ -73,6 +76,7 @@ c4b032a Wait out the post-release sprint skid before swapping the crest config
 - 共享次数：`_usesLeft` 初始 20，所有 Red 工具同步，坐椅子/读档 `ResetUses`；`BeginFreeRefill/EndFreeRefill` 临时把 Red 工具的 `replenishResource=None` 让补充免费（其它纹章不受影响）。
 - 计数补丁：`GetToolStorageAmount`、`HeroController.CanThrowTool`、`HeroController.DidUseAttackTool`、`ToolItemManager.TryReplenishTools`。
 - 绑定/法术只在装备纷乱时替换（`RandomToolsActive/RandomSpellsActive`）。
+- **法术费用**：`PlayerDataSilkSkillCostPatch` 在 `RandomSpellsActive` 时把 `PlayerData.SilkSkillCost` 降到 `RandomCrestModPlugin.RandomSpellSilkCost`（默认 3，只降不升）。判定（`CanThrowTool`）/ HUD 图标（`ToolHudIcon`）/ 所有技能 FSM 的 `TakeSilk` 都读这一属性，所以自动一致；缚丝（`SilkSpool.BindCost`）和工具（`Usage.SilkRequired`）完全不受影响。
 
 ## 六、HUD / 存档界面美术
 
@@ -105,16 +109,26 @@ c4b032a Wait out the post-release sprint skid before swapping the crest config
 1. **诅咒缚丝** 已删除：它用 `FORCE CURSED BIND` 全局跳转绕过游戏检查，导致过场可触发、丝不足卡死、滑步卡死，为它做的妥协（`TakeSilk` 屏蔽、`CanBind` 门控、滑步/丝量守卫）也一并删了。
 2. **滑步 + 换配置**：任何在 Sprint FSM 非 Idle 时触发 `HC CONFIG UPDATED` / `SPRINT CANCEL` 的操作都会让大黄蜂漂浮/跑出场景。用 `IsSprintOrSkid` + 静默换配置规避。
 3. **`ToolCrest.IsEquipped` 是共享补丁点**：SilkCurseMod 也 patch 它（当 Cursed 已装备）。两者同时用会互相干扰，兼容性方案**尚未实现**（方向：SilkCurseMod 让路，且不装 RandomCrestMod 时行为不变；粒度建议按 `CurrentCrestID=="RandomCrest"`，无需反射）。
-4. **随机萨满空中缚丝落水卡死**：`SurfaceWaterRegion` 用 `SpellCrest.IsEquipped` 放行进水，但原版会在进水时走 Bind FSM 的 `Shaman Fall --CANCEL--> Shaman Air Cancel`；我们换配置后没触发。已在 `RandomAttackService.Tick` 里检测 `cState.swimming` 时给 Bind FSM 发 `CANCEL`（`854219a`，**待用户实测确认**）。
+4. **随机萨满空中缚丝落水穿出场景**（`854219a` 的修法不够）：
+   - `SurfaceWaterRegion.OnTriggerEnter2D` 里有：`if (hero.cState.isBinding && !SpellCrest.IsEquipped)` 就把英雄往上推 0.2 / 清竖直速度然后 return（不让进水）。这个 reject 只触发一次（trigger enter 只发一次），而 Bind FSM 的 `Shaman Fall` 每帧还会 `SetVelocity2d` 重新给向下速度 → 英雄直接从水面穿下去，掉出场景 → 黑屏 → 回到入口。
+   - 正常随机到萨满时 `SpellCrest.IsEquipped` 被 spoof 成 true，本该走进水分支；**但当 spoof 被提前释放（见 `TickDash` 抢跑）时 reject 分支就被触发**，于是穿模。
+   - 修法（本次）：
+     1. `TickDash` 在 `_dashActive` 的分支里，准备 `Restore` 前也检查 `_active || _nailArtActive || _bindActive`，有其它操作持有 spoof 时绝不恢复（它同时修了野兽/收割者 buff 丢失的根因）；
+     2. 安全网：在 `SurfaceWaterRegion.OnTriggerEnter2D` 的 Prefix 里，只要 Bind FSM 处于 `Shaman Air`/`Shaman Fall` 且正在缚丝，就临时把 `SpellCrest.IsEquipped` 报为 true（`ForceSpellCrestForWater`），让水正常接住英雄；进入水后 `EnteredWater` 会发全局 FSM CANCEL，同时现有 `cs.swimming` 的 `CancelBindFsm` 也会发 CANCEL。
+   - 仍待实测。
 
 ## 九、待办 / 待确认
 
-- [ ] 实测确认「随机萨满落水取消」是否生效（`854219a`）。
-- [ ] 实测确认「HUD 外框读档 / 切换纹章后正常显示」（本次 `HudFrameService` 修复：不再缓存 `renderer.enabled`，`Reset()` 先恢复再清理，等游戏出场后再接管）。
+- [x] HUD 外框读档 / 切换纹章后正常显示（`HudFrameService` 不再缓存 `renderer.enabled`，`Reset()` 先恢复再清理，等游戏出场后再接管）。
+- [x] 随机萨满空中缚丝落水不再穿出场景（`TickDash` 不再抢跑 + `SurfaceWaterRegion` 的 Shaman 安全网）。
+- [x] 野兽/收割者疾风步/滑步缚丝正常获得 Rage/Reaper buff（同一根因：`TickDash` 提前 `Restore`）。
+- [x] 疾风步/空中疾风步/滑步里的普通、上、下劈砍也随机（`ApplyIfRequested` 改为静默换配置）。
+- [x] 纷乱法术费用降为 3 格（`PlayerDataSilkSkillCostPatch`）。
 - [ ] 滑步缚丝缺纹章专属状态：当前是已知取舍；若要修需同步两个 FSM，风险高。
 - [ ] （可选）SilkCurseMod 兼容：让 SilkCurseMod 在装备纷乱时让路。
 - [ ] （可选）随机结果临时日志，验证 7 纹章均匀分布。
-- [ ] Release 打包（GitHub Release 需要 token，本机无法用 API 建；可手动发）。
+- [ ] （可选）把法术费用 / 其它写死参数做成配置项（目前按设计全写死）。
+- [x] Release 打包：本机可用 Git Credential Manager 里存的 `github.com` 凭据调 REST API 建 Release 并上传附件（不需额外 token），已发 v0.1.0 / v0.1.1。
 
 ## 十、环境 / 路径 / 分析资料
 
