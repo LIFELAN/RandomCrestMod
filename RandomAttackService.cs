@@ -101,8 +101,9 @@ internal static class RandomAttackService
 
             // Sprint / dash / sprint-attack / air-dash are all driven by the "Sprint" FSM, which
             // grabs its attack object while it runs. Swapping the crest underneath it strands that
-            // FSM (control stays relinquished and gravity stays off), so leave those alone.
-            if (IsSprintOrDash(hero.cState))
+            // FSM (control stays relinquished and gravity stays off), so leave those alone - this
+            // includes the post-release skid, where cState is already clear but the FSM is not.
+            if (IsSprintOrSkid(hero))
             {
                 return;
             }
@@ -192,13 +193,6 @@ internal static class RandomAttackService
             return;
         }
 
-        // Swapping the config fires "HC CONFIG UPDATED", which globally cancels the Sprint FSM.
-        // Never do that while the player is sprinting / dashing.
-        if (IsSprintOrDash(hero.cState))
-        {
-            return;
-        }
-
         try
         {
             var pool = GetPool(hero);
@@ -208,7 +202,13 @@ internal static class RandomAttackService
             }
 
             var group = pool[UnityEngine.Random.Range(0, pool.Count)];
-            ApplyGroup(hero, group);
+
+            // Swapping the config normally fires "HC CONFIG UPDATED", which globally cancels the
+            // Sprint FSM; during a sprint / post-release skid that strands the hero. Do a quiet swap
+            // there so the Sprint FSM keeps running. The restore is postponed in Tick until the FSM
+            // reaches Idle. (Trade-off: a bind started mid-skid may miss its crest bind state.)
+            var quiet = IsSprintOrSkid(hero);
+            ApplyGroup(hero, group, quiet);
 
             _bindActive = true;
             _bindWasBinding = false;
@@ -232,8 +232,8 @@ internal static class RandomAttackService
         }
 
         // Restoring the config fires "HC CONFIG UPDATED", which would cancel the Sprint FSM if the
-        // player is already sprinting. Postpone until the sprint ends (Tick handles it).
-        if (IsSprintOrDash(hero.cState))
+        // player is already sprinting / sliding. Postpone until the sprint ends (Tick handles it).
+        if (IsSprintOrSkid(hero))
         {
             return;
         }
@@ -283,8 +283,10 @@ internal static class RandomAttackService
                     _bindWasBinding = true;
                 }
 
-                // Never swap the config back while sprinting / dashing; wait for the sprint to end.
-                var sprinting = IsSprintOrDash(cs);
+                // Never swap the config back while sprinting / dashing / skidding; wait for the
+                // Sprint FSM to reach Idle (restoring fires "HC CONFIG UPDATED", which would
+                // globally cancel the still-running Sprint FSM and strand the hero).
+                var sprinting = IsSprintOrSkid(hero);
                 if (!sprinting && ((_bindWasBinding && !cs.isBinding && elapsed >= _minHold) || elapsed > 30f))
                 {
                     Restore(hero);
@@ -645,6 +647,30 @@ internal static class RandomAttackService
             || cs.backDashing
             || cs.superDashing
             || cs.shadowDashing;
+    }
+
+    /// <summary>
+    /// True while the hero is sprinting / dashing, or still in the Sprint FSM's post-release skid
+    /// or wall-run states. After the sprint button is released the cState flags are already clear,
+    /// but the Sprint FSM stays out of Idle while the hero slides. Swapping the crest config then
+    /// fires "HC CONFIG UPDATED" and cancels the Sprint FSM from under itself, stranding the hero
+    /// (sliding with no control), so every config swap has to wait for the FSM to reach Idle.
+    /// </summary>
+    private static bool IsSprintOrSkid(HeroController hero)
+    {
+        if (hero == null)
+        {
+            return false;
+        }
+
+        if (IsSprintOrDash(hero.cState))
+        {
+            return true;
+        }
+
+        var fsm = hero.sprintFSM;
+        var state = fsm != null ? fsm.ActiveStateName : null;
+        return !string.IsNullOrEmpty(state) && state != "Idle";
     }
 
     private static ToolCrest? ResolveCrest(HeroControllerConfig? config)
