@@ -266,7 +266,7 @@ internal static class CrestService
 
         _injectedLanguage = code;
         var chinese = IsChinese(code);
-        InjectLocalisation(NameKey, chinese ? "纷乱纹章" : "Chaos");
+        InjectLocalisation(NameKey, chinese ? "纷乱" : "Chaos");
         InjectLocalisation(
             DescKey,
             chinese ? "你永远不知道下一秒会发生什么。" : "You never know what will happen next.");
