@@ -86,7 +86,9 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 
         // Fixed HUD icons for the random tool / random spell bindings, sized to match the game's
         // tiny HUD tool icons (~0.62 units at ppu 100).
-        RandomIconService.ToolIcon = LoadEmbeddedSprite("crest_random_tool.png", 420f);
+        // The tool glyphs are finer/denser than the spell ones, so load them at a lower ppu to make
+        // the tool icon occupy a similar share of the HUD slot.
+        RandomIconService.ToolIcon = LoadEmbeddedSprite("crest_random_tool.png", 370f);
         RandomIconService.SpellIcon = LoadEmbeddedSprite("crest_random_spell.png", 420f);
 
         gameObject.AddComponent<RandomCrestRunner>();
