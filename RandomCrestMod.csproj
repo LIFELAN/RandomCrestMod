@@ -18,7 +18,7 @@
     <!-- Shortens and anonymizes paths in debug symbols relative to the project directory. -->
     <PathMap Condition="'$(Configuration)' == 'Release'">$(MSBuildProjectDirectory)=/</PathMap>
 
-    <RepositoryUrl>https://github.com/lifelan/RandomCrestMod</RepositoryUrl>
+    <RepositoryUrl>https://github.com/LIFELAN/RandomCrestMod</RepositoryUrl>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BepInEx.Analyzers" Version="1.0.8" PrivateAssets="all" />
