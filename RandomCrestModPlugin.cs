@@ -34,8 +34,9 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 
     internal static readonly bool OnlyOnRandomCrest = true;
 
-    /// <summary>Silk cost of every silk skill while the mod crest's random spells are active.</summary>
-    internal static readonly int RandomSpellSilkCost = 3;
+    /// <summary>Silk shaved off every silk skill while the mod crest's random spells are active
+    /// (vanilla 4 -> 3, or 3 -> 2 with the Flea Charm at full health).</summary>
+    internal static readonly int RandomSpellSilkDiscount = 1;
 
     internal static readonly bool DebugLogging = false;
 

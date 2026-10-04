@@ -190,12 +190,13 @@ internal static class TryReplenishToolsPatch
 
 /// <summary>
 /// While the mod crest's random spells are active every silk skill costs
-/// <see cref="RandomCrestModPlugin.RandomSpellSilkCost"/> silk instead of the vanilla 4 (or 3 with
-/// the Flea Charm at full health). <c>PlayerData.SilkSkillCost</c> is the single source of truth:
-/// the affordability check (<c>HeroController.CanThrowTool</c>), the HUD icon (<c>ToolHudIcon</c>)
-/// and every skill FSM's <c>TakeSilk</c> all read it, so they stay consistent automatically. Only
-/// lowers the cost; binds (<c>SilkSpool.BindCost</c>) and tools (<c>Usage.SilkRequired</c>) are
-/// untouched.
+/// <see cref="RandomCrestModPlugin.RandomSpellSilkDiscount"/> silk less than vanilla: 3 normally,
+/// or 2 with the Flea Charm at full health (vanilla is 4 / 3). <c>PlayerData.SilkSkillCost</c> is
+/// the single source of truth: the affordability check (<c>HeroController.CanThrowTool</c>), the
+/// HUD icon (<c>ToolHudIcon</c>) and every skill FSM's <c>TakeSilk</c> (via
+/// <c>GetPlayerDataVariable</c>) all read it, so they stay consistent automatically. Only silk
+/// skills are affected; binds (<c>SilkSpool.BindCost</c>) and tools (<c>Usage.SilkRequired</c>)
+/// are untouched.
 /// </summary>
 [HarmonyPatch(typeof(PlayerData), nameof(PlayerData.SilkSkillCost), MethodType.Getter)]
 internal static class PlayerDataSilkSkillCostPatch
@@ -203,9 +204,11 @@ internal static class PlayerDataSilkSkillCostPatch
     [HarmonyPostfix]
     private static void Postfix(ref int __result)
     {
-        if (RandomToolService.RandomSpellsActive && __result > RandomCrestModPlugin.RandomSpellSilkCost)
+        if (RandomToolService.RandomSpellsActive)
         {
-            __result = RandomCrestModPlugin.RandomSpellSilkCost;
+            // Vanilla returns 4, or 3 with the Flea Charm at full health. Shave one more silk
+            // off so the charm keeps mattering: 4 -> 3, 3 -> 2. Never below 1.
+            __result = System.Math.Max(1, __result - RandomCrestModPlugin.RandomSpellSilkDiscount);
         }
     }
 }
