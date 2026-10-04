@@ -41,6 +41,8 @@ internal static class RandomAttackService
     private static bool _nailArtActive;
     private static bool _bindActive;
     private static bool _bindWasBinding;
+    private static bool _bindCancelSent;
+    private static PlayMakerFSM? _bindFsm;
     private static bool _dashActive;
     private static float _dashLastActive;
     private static bool _suppressConfigUpdated;
@@ -241,6 +243,23 @@ internal static class RandomAttackService
         Restore(hero);
     }
 
+    /// <summary>Cancels the game's Bind FSM (used to end a random bind stuck in water).</summary>
+    private static void CancelBindFsm(HeroController hero)
+    {
+        try
+        {
+            _bindFsm ??= FSMUtility.LocateFSM(hero.gameObject, "Bind");
+            if (_bindFsm != null && _bindFsm.ActiveStateName != "Idle")
+            {
+                _bindFsm.SendEvent("CANCEL");
+            }
+        }
+        catch (Exception e)
+        {
+            RandomCrestModPlugin.LogError("RandomAttackService.CancelBindFsm failed: " + e);
+        }
+    }
+
     /// <summary>Restores the equipped crest's config once the attack animation is done.</summary>
     internal static void Tick()
     {
@@ -281,6 +300,15 @@ internal static class RandomAttackService
                 if (cs.isBinding)
                 {
                     _bindWasBinding = true;
+                }
+
+                // The Spell (Shaman) air bind is allowed into surface water by the game, but the
+                // vanilla bind cancels on entering it. Our swapped config misses that branch, so
+                // cancel it ourselves - otherwise the hero sinks while stuck in the bind pose.
+                if (cs.swimming && !_bindCancelSent)
+                {
+                    _bindCancelSent = true;
+                    CancelBindFsm(hero);
                 }
 
                 // Never swap the config back while sprinting / dashing / skidding; wait for the
@@ -399,6 +427,7 @@ internal static class RandomAttackService
         _nailArtActive = false;
         _bindActive = false;
         _bindWasBinding = false;
+        _bindCancelSent = false;
         _dashActive = false;
         RandomCrestModPlugin.Log($"Random attack/charge/bind/dash restored after {(Time.time - _activateTime):F2}s.");
     }
