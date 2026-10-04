@@ -46,18 +46,14 @@ internal static class RandomAttackPatches
     }
 
     /// <summary>
-    /// Random bind: roll the outcome as soon as the player starts a bind, and refuse the bind when
-    /// the roll says so (the "cursed-like" result).
+    /// Random bind: install the random crest as soon as the player starts a bind so the Bind FSM
+    /// picks up that crest's effect.
     /// </summary>
     [HarmonyPatch(typeof(HeroController), nameof(HeroController.CanBind))]
     [HarmonyPostfix]
-    private static void HeroController_CanBind_Postfix(ref bool __result)
+    private static void HeroController_CanBind_Postfix()
     {
         RandomBindService.EnsureAttempt();
-        if (__result && RandomBindService.ForbidBind)
-        {
-            __result = false;
-        }
     }
 
     /// <summary>
@@ -69,24 +65,6 @@ internal static class RandomAttackPatches
     private static bool FSMUtility_SendEventToGameObject_Prefix(string eventName)
     {
         return !(RandomAttackService.SuppressConfigUpdated && eventName == "HC CONFIG UPDATED");
-    }
-
-    /// <summary>
-    /// A refused (cursed) bind should only fail, not drain silk. The Bind FSM spends silk through
-    /// <see cref="HeroController.TakeSilk(int)"/>; skip it while our cursed bind sequence runs.
-    /// </summary>
-    [HarmonyPatch(typeof(HeroController), nameof(HeroController.TakeSilk), new[] { typeof(int) })]
-    [HarmonyPrefix]
-    private static bool TakeSilk_Prefix()
-    {
-        return !RandomBindService.ShouldSuppressSilk;
-    }
-
-    [HarmonyPatch(typeof(HeroController), nameof(HeroController.TakeSilk), new[] { typeof(int), typeof(SilkSpool.SilkTakeSource) })]
-    [HarmonyPrefix]
-    private static bool TakeSilkV2_Prefix()
-    {
-        return !RandomBindService.ShouldSuppressSilk;
     }
 
     /// <summary>

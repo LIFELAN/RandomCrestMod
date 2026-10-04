@@ -11,10 +11,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 {
     internal static RandomCrestModPlugin Instance { get; private set; } = null!;
 
-    // ---- Configurable (the only two entries left in the BepInEx config) ----
-
-    /// <summary>If true, binds can be refused like the Cursed crest (<see cref="CursedBindChance"/>).</summary>
-    internal static ConfigEntry<bool> EnableCursedBind = null!;
+    // ---- Configurable (the only entry left in the BepInEx config) ----
 
     /// <summary>Number of uses every tool is refilled to at a bench; refills are free.</summary>
     internal static ConfigEntry<int> ToolUsesPerBench = null!;
@@ -39,9 +36,6 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 
     internal static readonly bool DebugLogging = false;
 
-    /// <summary>Chance a bind is refused when <see cref="EnableCursedBind"/> is on.</summary>
-    internal static readonly float CursedBindChance = 0.05f;
-
     internal static readonly float HudFrameOffsetX = -0.84f;
 
     internal static readonly float HudFrameOffsetY = 0.16f;
@@ -53,12 +47,6 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
     private void Awake()
     {
         Instance = this;
-
-        EnableCursedBind = Config.Bind(
-            "Bind",
-            "EnableCursedBind",
-            true,
-            "If true, a bind has a 5% chance to be refused like the Cursed crest. Turn off to always bind normally.");
 
         ToolUsesPerBench = Config.Bind(
             "Tools",

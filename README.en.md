@@ -52,7 +52,6 @@ like vanilla for every other crest.
 | --- | --- |
 | Random attacks | Every attack uses a random crest's attack moveset. The direction you pressed (normal / up / down / wall / dash / charge slash) is preserved. |
 | Random bind | Every bind uses a random crest's bind effect. |
-| Cursed bind | A bind has a **5%** chance to be refused (plays the game's cursed bind sequence). Can be turned off. |
 | Random tools | Every thrown tool becomes a random Red tool from the whole game — obtained or not. |
 | Random spells | Every cast silk skill becomes one of the six silk skills at random. |
 | Tool budget | Tools share **20 uses per bench** (configurable) and refill for **free**. |
@@ -73,14 +72,13 @@ Config file: `BepInEx/config/io.github.lifelan.randomcrestmod.cfg`
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `Bind/EnableCursedBind` | `true` | Whether a bind has a **5%** chance to be refused (cursed bind). Turn off to always bind normally. |
 | `Tools/ToolUsesPerBench` | `20` | Number of uses every tool is refilled to when resting at a bench. |
 
 > Everything else is **hardcoded** (tuned during development): random attacks / binds / tools /
-> spells are always on and only apply to the Chaos crest; the cursed-bind chance is fixed at `5%`;
-> the excluded tools are fixed to Needle Phial and Snare Setter; Voltvessels is fixed to its bola
-> form; Rosary Cannon is kept fully charged; the custom HUD frame, save spool and random icons are
-> always on, and the HUD frame offset/scale are fixed too.
+> spells are always on and only apply to the Chaos crest; the excluded tools are fixed to Needle
+> Phial and Snare Setter; Voltvessels is fixed to its bola form; Rosary Cannon is kept fully
+> charged; the custom HUD frame, save spool and random icons are always on, and the HUD frame
+> offset/scale are fixed too.
 
 ---
 
@@ -91,8 +89,7 @@ Config file: `BepInEx/config/io.github.lifelan.randomcrestmod.cfg`
 - The random tool pool includes tools you have **not obtained**; random spells are all **6** silk
   skills.
 - A random bind requires a **full spool (9 silk)**; with less silk it behaves like the vanilla
-  "not enough silk" message and never hangs.
-- The cursed bind plays the game's own cursed sequence and does **not** consume silk.
+  "not enough silk" message.
 - The Chaos crest does **not** count toward the game's completion percentage (other crests, tools
   and skills are unaffected).
 

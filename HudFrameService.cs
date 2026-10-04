@@ -4,10 +4,14 @@ using UnityEngine;
 namespace RandomCrestMod;
 
 /// <summary>
-/// Gives the mod crest its own bind-orb HUD frame by replacing the mesh/material of the live
-/// scene <c>Bind Orb</c> renderer (the object that already draws the crest frame). Reusing that
-/// renderer guarantees the HUD camera draws it; we point it at a quad textured with the mod's
-/// composited art while the mod crest is equipped, then restore the originals.
+/// Gives the mod crest its own bind-orb HUD frame.
+///
+/// <para>Earlier versions overwrote the game's <c>Bind Orb</c> tk2d mesh/material. That corrupts
+/// the sprite's cached mesh/material state, so once the mod crest had been equipped the frame
+/// stayed blank for every other crest. This version never touches the game renderer: it adds a
+/// small overlay renderer under the frame and toggles visibility only. While the mod crest is
+/// equipped the game's frame renderer is hidden and the overlay shows; otherwise the overlay is
+/// hidden and the game's own frame (whatever crest it belongs to) renders untouched.</para>
 /// </summary>
 internal static class HudFrameService
 {
@@ -15,16 +19,18 @@ internal static class HudFrameService
     private static Texture2D? _texture;
 
     private static BindOrbHudFrame? _hud;
-    private static MeshFilter? _baseFilter;
-    private static MeshRenderer? _baseRenderer;
-    private static Mesh? _originalMesh;
-    private static Material? _originalMaterial;
+    private static MeshRenderer? _gameRenderer;
     private static Vector3 _orbLocal = Vector3.zero;
 
+    private static GameObject? _overlayGo;
+    private static MeshFilter? _overlayFilter;
+    private static MeshRenderer? _overlayRenderer;
     private static Mesh? _quad;
     private static Material? _quadMaterial;
     private static MaterialPropertyBlock? _propertyBlock;
-    private static bool _replaced;
+
+    private static bool _showing;
+    private static bool _gameRendererWasEnabled = true;
     private static float _cachedScale = float.NaN;
     private static float _cachedOffsetX = float.NaN;
     private static float _cachedOffsetY = float.NaN;
@@ -36,42 +42,6 @@ internal static class HudFrameService
     {
         _sprite = sprite;
         _texture = sprite != null ? sprite.texture : null;
-
-        // Re-apply right before the camera renders: the game's tk2d update runs after our
-        // LateUpdate and would otherwise restore its own sprite mesh over our quad.
-        Application.onBeforeRender -= OnBeforeRender;
-        Application.onBeforeRender += OnBeforeRender;
-        Camera.onPreRender -= OnCameraPreRender;
-        Camera.onPreRender += OnCameraPreRender;
-    }
-
-    private static void OnBeforeRender()
-    {
-        PushToRenderer();
-    }
-
-    private static void OnCameraPreRender(Camera cam)
-    {
-        PushToRenderer();
-    }
-
-    private static void PushToRenderer()
-    {
-        if (!_replaced || _baseFilter == null || _baseRenderer == null || _quad == null)
-        {
-            return;
-        }
-
-        _baseFilter.sharedMesh = _quad;
-        _baseRenderer.sharedMaterial = _quadMaterial;
-        _baseRenderer.enabled = true;
-
-        if (_texture != null)
-        {
-            _propertyBlock ??= new MaterialPropertyBlock();
-            _propertyBlock.SetTexture("_MainTex", _texture);
-            _baseRenderer.SetPropertyBlock(_propertyBlock);
-        }
     }
 
     private static bool Enabled =>
@@ -87,7 +57,7 @@ internal static class HudFrameService
             _nextDebug = Time.unscaledTime + 3f;
             RandomCrestModPlugin.Log(
                 $"[HudFrame] dbg equipped={equipped} enabled={Enabled} hud={(_hud != null)} " +
-                $"replaced={_replaced} baseEnabled={(_baseRenderer != null && _baseRenderer.enabled)} " +
+                $"showing={_showing} gameEnabled={(_gameRenderer != null && _gameRenderer.enabled)} " +
                 $"worldPos={(_hud != null ? _hud.transform.position.ToString() : "<none>")}");
         }
 
@@ -108,10 +78,7 @@ internal static class HudFrameService
     private static bool Acquire()
     {
         _hud = null;
-        _baseFilter = null;
-        _baseRenderer = null;
-        _originalMesh = null;
-        _originalMaterial = null;
+        _gameRenderer = null;
 
         BindOrbHudFrame? best = null;
         foreach (var hud in Resources.FindObjectsOfTypeAll<BindOrbHudFrame>())
@@ -153,36 +120,54 @@ internal static class HudFrameService
             return false;
         }
 
-        _baseFilter = _hud.GetComponent<MeshFilter>();
-        _baseRenderer = _hud.GetComponent<MeshRenderer>();
-
-        if (_baseRenderer == null)
+        _gameRenderer = _hud.GetComponent<MeshRenderer>();
+        if (_gameRenderer == null)
         {
-            RandomCrestModPlugin.LogError("[HudFrame] Bind Orb has no MeshRenderer; cannot replace frame.");
+            RandomCrestModPlugin.LogError("[HudFrame] Bind Orb has no MeshRenderer; cannot add the frame.");
             return false;
         }
 
-        _originalMesh = _baseFilter != null ? _baseFilter.sharedMesh : null;
-        _originalMaterial = _baseRenderer.sharedMaterial;
+        _gameRendererWasEnabled = _gameRenderer.enabled;
 
         // The game's own silk Orb child sits at the spool centre; anchor our art there so the
         // custom spool lines up with the real one regardless of the HUD layout.
         var orb = _hud.transform.Find("Orb");
         _orbLocal = orb != null ? orb.localPosition : Vector3.zero;
 
-        var baseMat = _originalMaterial;
+        if (_overlayGo == null)
+        {
+            _overlayGo = new GameObject("RandomCrest HUD Frame")
+            {
+                // Must share the game frame's layer or the HUD camera's culling mask skips it.
+                layer = _hud.gameObject.layer,
+            };
+            _overlayGo.transform.SetParent(_hud.transform, false);
+            _overlayGo.transform.localPosition = Vector3.zero;
+            _overlayGo.transform.localRotation = Quaternion.identity;
+            _overlayGo.transform.localScale = Vector3.one;
+
+            _overlayFilter = _overlayGo.AddComponent<MeshFilter>();
+            _overlayRenderer = _overlayGo.AddComponent<MeshRenderer>();
+            _overlayRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            _overlayRenderer.receiveShadows = false;
+            _overlayRenderer.sortingLayerID = _gameRenderer.sortingLayerID;
+            _overlayRenderer.sortingOrder = _gameRenderer.sortingOrder;
+            _overlayGo.SetActive(false);
+        }
+
+        // Copy the game material so the shader / texture setup matches, then swap in our art.
+        var baseMat = _gameRenderer.sharedMaterial;
         _quadMaterial = baseMat != null
             ? new Material(baseMat) { mainTexture = _texture }
             : new Material(Shader.Find("Sprites/Default")) { mainTexture = _texture };
 
-        RandomCrestModPlugin.Log(
-            $"[HudFrame] using '{PathOf(_hud.transform)}' frame art.");
+        RandomCrestModPlugin.Log($"[HudFrame] using '{PathOf(_hud.transform)}' frame art.");
         return true;
     }
 
     private static void Apply()
     {
-        if (_baseFilter == null || _baseRenderer == null || _sprite == null)
+        if (_overlayFilter == null || _overlayRenderer == null || _overlayGo == null || _sprite == null)
         {
             return;
         }
@@ -197,24 +182,50 @@ internal static class HudFrameService
             _cachedOffsetX = ox;
             _cachedOffsetY = oy;
             _quad = BuildQuad(_orbLocal.x + ox, _orbLocal.y + oy, scale);
+            _overlayFilter.sharedMesh = _quad;
         }
 
-        _replaced = true;
-        PushToRenderer();
+        _overlayRenderer.sharedMaterial = _quadMaterial;
+        if (_texture != null)
+        {
+            _propertyBlock ??= new MaterialPropertyBlock();
+            _propertyBlock.SetTexture("_MainTex", _texture);
+            _overlayRenderer.SetPropertyBlock(_propertyBlock);
+        }
+
+        _overlayRenderer.enabled = true;
+        _overlayGo.SetActive(true);
+
+        if (!_showing && _gameRenderer != null)
+        {
+            _gameRendererWasEnabled = _gameRenderer.enabled;
+        }
+
+        _showing = true;
+        if (_gameRenderer != null)
+        {
+            _gameRenderer.enabled = false;
+        }
     }
 
     private static void Restore()
     {
-        if (!_replaced || _baseFilter == null || _baseRenderer == null)
+        if (!_showing)
         {
             return;
         }
 
-        _baseFilter.sharedMesh = _originalMesh;
-        _baseRenderer.sharedMaterial = _originalMaterial;
-        _baseRenderer.SetPropertyBlock(null);
-        _baseRenderer.enabled = true;
-        _replaced = false;
+        if (_overlayGo != null)
+        {
+            _overlayGo.SetActive(false);
+        }
+
+        if (_gameRenderer != null)
+        {
+            _gameRenderer.enabled = _gameRendererWasEnabled;
+        }
+
+        _showing = false;
     }
 
     // Spool (disk) centre inside the source art, as a fraction of the image (x from left, y from top).
