@@ -15,6 +15,17 @@ internal static class CrestPatches
     {
         CrestService.EnsureCreated();
         CrestService.EnsureUnlocked();
+
+        // The HUD / Bind Orb is rebuilt for the new save, so re-acquire the frame overlay.
+        HudFrameService.Reset();
+    }
+
+    /// <summary>Scene load / respawn: the HUD can be rebuilt here too, so drop the cached refs.</summary>
+    [HarmonyPatch(typeof(HeroController), "SceneInit")]
+    [HarmonyPostfix]
+    private static void HeroController_SceneInit_Postfix()
+    {
+        HudFrameService.Reset();
     }
 
     /// <summary>

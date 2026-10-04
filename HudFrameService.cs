@@ -44,6 +44,21 @@ internal static class HudFrameService
         _texture = sprite != null ? sprite.texture : null;
     }
 
+    /// <summary>
+    /// Drops the cached HUD / overlay references. The <c>Bind Orb</c> object is rebuilt when a save
+    /// is loaded (or a scene changes), so the cached references go stale and the overlay has to be
+    /// re-acquired for the new instance - otherwise the frame only appears after a full restart.
+    /// </summary>
+    internal static void Reset()
+    {
+        _hud = null;
+        _gameRenderer = null;
+        _overlayGo = null;
+        _overlayFilter = null;
+        _overlayRenderer = null;
+        _showing = false;
+    }
+
     private static bool Enabled =>
         RandomCrestModPlugin.EnableCustomHudFrame && _sprite != null && _texture != null;
 
