@@ -8,10 +8,15 @@ namespace RandomCrestMod;
 ///
 /// <para>Earlier versions overwrote the game's <c>Bind Orb</c> tk2d mesh/material. That corrupts
 /// the sprite's cached mesh/material state, so once the mod crest had been equipped the frame
-/// stayed blank for every other crest. This version never touches the game renderer: it adds a
-/// small overlay renderer under the frame and toggles visibility only. While the mod crest is
-/// equipped the game's frame renderer is hidden and the overlay shows; otherwise the overlay is
-/// hidden and the game's own frame (whatever crest it belongs to) renders untouched.</para>
+/// stayed blank for every other crest. This version never touches the game mesh/material: it adds
+/// a small overlay renderer under the frame and toggles visibility only.</para>
+///
+/// <para>While the mod crest is equipped the overlay shows and the game frame renderer is hidden;
+/// otherwise the overlay is hidden and the game's own frame (whatever crest it belongs to) renders
+/// untouched. The game's own FSM drives <c>MeshRenderer.enabled</c> during the HUD intro, so we only
+/// re-enable the frame when we were the one who hid it (never restoring a cached value), and we wait
+/// for the game to reveal the frame once before taking over so the custom frame loads in step with
+/// the rest of the HUD.</para>
 /// </summary>
 internal static class HudFrameService
 {
@@ -30,7 +35,14 @@ internal static class HudFrameService
     private static MaterialPropertyBlock? _propertyBlock;
 
     private static bool _showing;
-    private static bool _gameRendererWasEnabled = true;
+
+    // The game's own "Bind Orb" FSM toggles the frame's MeshRenderer during the HUD intro
+    // (`Init` hides it, then `Appear` shows it once the health HUD has appeared). We therefore
+    // must never cache-and-restore the renderer's `enabled` value: at acquire time it is usually
+    // `false`, and restoring that value would leave every other crest's frame permanently hidden.
+    // Instead we only remember whether *we* were the one who turned it off.
+    private static bool _gameFrameRevealed;
+    private static bool _weHidGameFrame;
     private static float _cachedScale = float.NaN;
     private static float _cachedOffsetX = float.NaN;
     private static float _cachedOffsetY = float.NaN;
@@ -51,12 +63,32 @@ internal static class HudFrameService
     /// </summary>
     internal static void Reset()
     {
+        // Put the game's frame back before dropping the references, otherwise a persistent HUD
+        // (one that survives the reset) keeps its renderer disabled forever.
+        Restore();
+
+        if (_overlayGo != null)
+        {
+            UnityEngine.Object.Destroy(_overlayGo);
+        }
+
+        if (_quad != null)
+        {
+            UnityEngine.Object.Destroy(_quad);
+        }
+
         _hud = null;
         _gameRenderer = null;
         _overlayGo = null;
         _overlayFilter = null;
         _overlayRenderer = null;
+        _quad = null;
+        _cachedScale = float.NaN;
+        _cachedOffsetX = float.NaN;
+        _cachedOffsetY = float.NaN;
         _showing = false;
+        _gameFrameRevealed = false;
+        _weHidGameFrame = false;
     }
 
     private static bool Enabled =>
@@ -142,7 +174,8 @@ internal static class HudFrameService
             return false;
         }
 
-        _gameRendererWasEnabled = _gameRenderer.enabled;
+        _gameFrameRevealed = _gameRenderer.enabled;
+        _weHidGameFrame = false;
 
         // The game's own silk Orb child sits at the spool centre; anchor our art there so the
         // custom spool lines up with the real one regardless of the HUD layout.
@@ -187,6 +220,26 @@ internal static class HudFrameService
             return;
         }
 
+        // Sync with the game's HUD intro: the frame renderer is hidden by the FSM until `Appear`
+        // fires ("SHOW HP"). Wait for it to be shown once, then take over, so the custom frame
+        // loads together with the rest of the HUD instead of popping in the instant the save opens.
+        if (!_gameFrameRevealed)
+        {
+            if (_gameRenderer != null && _gameRenderer.enabled)
+            {
+                _gameFrameRevealed = true;
+            }
+            else
+            {
+                if (_overlayGo.activeSelf)
+                {
+                    _overlayGo.SetActive(false);
+                }
+
+                return;
+            }
+        }
+
         var scale = RandomCrestModPlugin.HudFrameScale;
         var ox = RandomCrestModPlugin.HudFrameOffsetX;
         var oy = RandomCrestModPlugin.HudFrameOffsetY;
@@ -211,35 +264,34 @@ internal static class HudFrameService
         _overlayRenderer.enabled = true;
         _overlayGo.SetActive(true);
 
-        if (!_showing && _gameRenderer != null)
+        if (_gameRenderer != null)
         {
-            _gameRendererWasEnabled = _gameRenderer.enabled;
+            // Only claim the renderer if it is currently on; if the game has it off we leave it
+            // alone so its own FSM stays in charge of when the frame should be visible.
+            if (_gameRenderer.enabled)
+            {
+                _weHidGameFrame = true;
+            }
+
+            _gameRenderer.enabled = false;
         }
 
         _showing = true;
-        if (_gameRenderer != null)
-        {
-            _gameRenderer.enabled = false;
-        }
     }
 
     private static void Restore()
     {
-        if (!_showing)
-        {
-            return;
-        }
-
-        if (_overlayGo != null)
+        if (_overlayGo != null && _overlayGo.activeSelf)
         {
             _overlayGo.SetActive(false);
         }
 
-        if (_gameRenderer != null)
+        if (_weHidGameFrame && _gameRenderer != null)
         {
-            _gameRenderer.enabled = _gameRendererWasEnabled;
+            _gameRenderer.enabled = true;
         }
 
+        _weHidGameFrame = false;
         _showing = false;
     }
 

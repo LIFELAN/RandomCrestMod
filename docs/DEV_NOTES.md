@@ -85,7 +85,10 @@ c4b032a Wait out the post-release sprint skid before swapping the crest config
 - `HudFrameService`：**叠加方案**——不碰游戏 tk2d 网格/材质，而是在 `Bind Orb` 下挂一个自己的 MeshFilter/MeshRenderer：
   - 装备纷乱时隐藏游戏外框渲染器 + 显示我们的叠加；否则反过来；
   - 叠加对象的 `layer` 必须等于 `Bind Orb.gameObject.layer`（否则 HUD 相机不渲染）；
-  - **读档 / 场景加载会重建 `Bind Orb`**，所以 `CrestPatches` 在 `GameManager.SetLoadedGameData` 和 `HeroController.SceneInit` 里调用 `HudFrameService.Reset()` 强制重新获取（否则只有重启游戏才显示）。
+  - **读档 / 场景加载会重建 `Bind Orb`**，所以 `CrestPatches` 在 `GameManager.SetLoadedGameData` 和 `HeroController.SceneInit` 里调用 `HudFrameService.Reset()` 强制重新获取；
+  - **关键坑（已修）**：游戏自己的 `Bind Orb` FSM 会在 HUD 出场动画里开关外框 `MeshRenderer.enabled`（`Init` 先关，等血量 HUD 出来即 `SHOW HP` 后 `Appear` 再开）。因此**绝不能缓存 `enabled` 再恢复**：获取时它通常是 `false`，恢复这个值会让所有其它纹章的外框永久消失。现在只记录「是不是我们把它关掉的」(`_weHidGameFrame`)，恢复时只在我们关过的情况下置 `true`；
+  - `Reset()` 会先 `Restore()` 再丢引用（否则活下来的 HUD 会一直保持关闭），并销毁旧的叠加对象/网格，避免残留 ghost；
+  - 首次获取时用 `_gameFrameRevealed` 等游戏先把外框显示一次（`Appear`）再接管，这样纷乱外框和其它 HUD 一样「一点点加载」，而不是进档瞬间就蹦出来。
   - 曾用"直接改游戏 `sharedMesh/sharedMaterial`"方案，会破坏其他纹章外框（已弃用，不要回退）。
 - 随机图标：`RandomIconPatches.ToolHudIconSpritePatch`（换 sprite）+ `RadialHudIconColourPatch`（强制白 tint）。
 - 存档 spool：`SaveProfileCrestPatch` 改 `SaveProfileHealthBar.ShowHealth`（我们的 id 解析不了它的私有枚举）。
@@ -107,7 +110,7 @@ c4b032a Wait out the post-release sprint skid before swapping the crest config
 ## 九、待办 / 待确认
 
 - [ ] 实测确认「随机萨满落水取消」是否生效（`854219a`）。
-- [ ] 实测确认「纷乱 HUD 读档后立即显示」（`c48f0c8`）。
+- [ ] 实测确认「HUD 外框读档 / 切换纹章后正常显示」（本次 `HudFrameService` 修复：不再缓存 `renderer.enabled`，`Reset()` 先恢复再清理，等游戏出场后再接管）。
 - [ ] 滑步缚丝缺纹章专属状态：当前是已知取舍；若要修需同步两个 FSM，风险高。
 - [ ] （可选）SilkCurseMod 兼容：让 SilkCurseMod 在装备纷乱时让路。
 - [ ] （可选）随机结果临时日志，验证 7 纹章均匀分布。
