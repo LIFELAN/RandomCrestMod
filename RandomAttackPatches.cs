@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Reflection.Emit;
 using GlobalEnums;
 using GlobalSettings;
 using HarmonyLib;
@@ -99,6 +101,40 @@ internal static class RandomAttackPatches
     private static void SurfaceWaterRegion_OnTriggerEnter2D_Postfix()
     {
         RandomAttackService.ForceSpellCrestForWater = false;
+    }
+
+    /// <summary>
+    /// <c>HeroController.IsShamanCrestEquipped</c> reads <c>PlayerData.CurrentCrestID</c> rather
+    /// than <c>SpellCrest.IsEquipped</c>, so our config spoof does not reach it. <c>TransitionPoint</c>
+    /// uses it to decide whether a binding hero may cross a scene gate; with the Chaos crest equipped
+    /// that check always fails, so a randomly rolled Shaman bind is repeatedly pushed back out of the
+    /// gate while its <c>Shaman Fall</c> state keeps re-applying downward velocity, leaving the hero
+    /// stuck on the scene edge.
+    ///
+    /// <para>We redirect the call itself instead of postfixing <c>IsShamanCrestEquipped</c>, because a
+    /// method this small is a prime inlining candidate for Mono's JIT, which would make a detour on
+    /// it silently ineffective. The replacement re-implements the vanilla check and ORs our spoof, so
+    /// it behaves exactly like vanilla for every other crest / when the mod is off.</para>
+    /// </summary>
+    [HarmonyPatch(typeof(TransitionPoint), "TryDoTransition")]
+    [HarmonyTranspiler]
+    private static IEnumerable<CodeInstruction> TransitionPoint_TryDoTransition_Transpiler(
+        IEnumerable<CodeInstruction> instructions)
+    {
+        var original = AccessTools.Method(typeof(HeroController), nameof(HeroController.IsShamanCrestEquipped));
+        var replacement = AccessTools.Method(typeof(RandomAttackService), nameof(RandomAttackService.IsShamanCrestEquippedForTransition));
+
+        foreach (var instruction in instructions)
+        {
+            if (original != null && instruction.Calls(original))
+            {
+                yield return new CodeInstruction(OpCodes.Call, replacement);
+            }
+            else
+            {
+                yield return instruction;
+            }
+        }
     }
 
     /// <summary>

@@ -343,6 +343,57 @@ internal static class RandomAttackService
     /// </summary>
     internal static bool ForceSpellCrestForWater { get; set; }
 
+    /// <summary>
+    /// True while the config spoof currently reports the Spell (Shaman) crest. Some game code reads
+    /// <see cref="PlayerData.CurrentCrestID"/> directly instead of <c>ToolCrest.IsEquipped</c>.
+    /// <c>HeroController.IsShamanCrestEquipped</c> is one such case: <c>TransitionPoint</c> uses it
+    /// to decide whether a binding hero may cross a scene gate. With the Chaos crest equipped that
+    /// check always fails, so a randomly rolled Shaman bind gets shoved out of the gate every frame
+    /// while <c>Shaman Fall</c> keeps re-applying its own downward velocity - the hero jams against
+    /// the scene edge. Reporting the spoof here lets the Shaman air bind transition like vanilla.
+    /// </summary>
+    internal static bool SpoofingShaman
+    {
+        get
+        {
+            if (!IsSpoofing)
+            {
+                return false;
+            }
+
+            try
+            {
+                return SpoofCrest != null && ReferenceEquals(SpoofCrest, Gameplay.SpellCrest);
+            }
+            catch
+            {
+                // Gameplay settings not ready; treat as not Shaman.
+                return false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Vanilla <c>HeroController.IsShamanCrestEquipped</c>, plus our spoofed Shaman bind. The
+    /// <c>TransitionPoint.TryDoTransition</c> transpiler redirects that call here. It deliberately
+    /// does not call the original tiny method (which Mono could inline) and only reports true for the
+    /// real Shaman crest or while we are spoofing it, so every other case is byte-for-byte vanilla.
+    /// </summary>
+    internal static bool IsShamanCrestEquippedForTransition(HeroController hero)
+    {
+        if (hero == null)
+        {
+            return false;
+        }
+
+        if (hero.playerData != null && hero.playerData.CurrentCrestID == "Spell")
+        {
+            return true;
+        }
+
+        return SpoofingShaman;
+    }
+
     /// <summary>Cancels the game's Bind FSM (used to end a random bind stuck in water).</summary>
     private static void CancelBindFsm(HeroController hero)
     {

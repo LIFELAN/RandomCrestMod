@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5
+
+- Fixed a random Shaman bind getting stuck on the edge of a top/bottom scene gate when falling into
+  it: `TransitionPoint` tests `PlayerData.CurrentCrestID` directly, so the Chaos crest's spoofed
+  Shaman bind was rejected and repeatedly pushed out of the gate while the bind kept diving.
+
 ## 0.1.4
 
 - The Voltvessels (电枢球) now rolls randomly between its thrown bola and staked spear forms every

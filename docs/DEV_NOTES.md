@@ -152,11 +152,17 @@ dff0ccc Fix HUD frame stuck hidden after switching crests
      1. `TickDash` 在 `_dashActive` 的分支里，准备 `Restore` 前也检查 `_active || _nailArtActive || _bindActive`，有其它操作持有 spoof 时绝不恢复（它同时修了野兽/收割者 buff 丢失的根因）；
      2. 安全网：在 `SurfaceWaterRegion.OnTriggerEnter2D` 的 Prefix 里，只要 Bind FSM 处于 `Shaman Air`/`Shaman Fall` 且正在缚丝，就临时把 `SpellCrest.IsEquipped` 报为 true（`ForceSpellCrestForWater`），让水正常接住英雄；进入水后 `EnteredWater` 会发全局 FSM CANCEL，同时现有 `cs.swimming` 的 `CancelBindFsm` 也会发 CANCEL。
    - 仍待实测。
+5. **随机萨满缚丝穿越场景门卡在边缘**（本次修复）：`TransitionPoint.TryDoTransition` 判断缚丝英雄能否过门用的是 `HeroController.IsShamanCrestEquipped()`，它读的是 `PlayerData.CurrentCrestID == "Spell"`，**不是** `ToolCrest.IsEquipped`。装备纷乱时 `CurrentCrestID == "RandomCrest"`，所以即使随机掷到萨满、`IsEquipped` spoof 成功，这个检查仍为 false：门每帧把英雄推出触发器并清零竖直速度，而 Bind FSM 的 `Shaman Fall` 又每帧重新给向下速度 → 英雄卡在场景边缘动不了（普通/疾风步缚丝都一样）。
+   - 修法：`RandomAttackService.SpoofingShaman`（`IsSpoofing && SpoofCrest == Gameplay.SpellCrest`）+ `RandomAttackService.IsShamanCrestEquippedForTransition`（原版逻辑 || spoof）；然后 `RandomAttackPatches` 用 **Transpiler** 把 `TransitionPoint.TryDoTransition` 里对 `IsShamanCrestEquipped` 的 `callvirt` 换成后者。
+   - 为何用 Transpiler 而不是 Postfix：`IsShamanCrestEquipped` 是极小的非虚方法，Mono JIT 很可能把它内联进 `TryDoTransition`，那样 Harmony 对该方法的 detour 会被绕过；直接改调用点不受内联影响。
+   - 只影响「缚丝中且随机到萨满」这一种情况；其它纹章缚丝仍按原版被挡（它们很快结束，不会卡死），未装备纷乱时行为完全不变。
+   - 编译通过（0 警告 0 错误），**仍待进游戏实测**：装备纷乱、从上层掉入下层场景门、随机掷到萨满时能正常切场景。
 
 ## 九、待办 / 待确认
 
 - [x] HUD 外框读档 / 切换纹章后正常显示（`HudFrameService` 不再缓存 `renderer.enabled`，`Reset()` 先恢复再清理，等游戏出场后再接管）。
 - [x] 随机萨满空中缚丝落水不再穿出场景（`TickDash` 不再抢跑 + `SurfaceWaterRegion` 的 Shaman 安全网）。
+- [x] 随机萨满缚丝穿越上下场景门不再卡在边缘（Transpiler 重定向 `TransitionPoint.TryDoTransition` 里的 `IsShamanCrestEquipped` 调用，让 spoof 被认可）。
 - [x] 野兽/收割者疾风步/滑步缚丝正常获得 Rage/Reaper buff（同一根因：`TickDash` 提前 `Restore`）。
 - [x] 疾风步/空中疾风步/滑步里的普通、上、下劈砍也随机（`ApplyIfRequested` 改为静默换配置）。
 - [x] 纷乱法术费用降为 3 格（`PlayerDataSilkSkillCostPatch`）；满血带蚤母卵再叠到 2 格。
