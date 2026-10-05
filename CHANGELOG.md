@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3
+
+- The crest upgrader (伊娃 / Eva) no longer counts the Chaos crest's slots, so her awakening /
+  upgrade stages progress exactly like vanilla.
+
 ## 0.1.2
 
 - The Flea Charm now stacks with the Chaos silk discount (spells cost 2 silk at full health).

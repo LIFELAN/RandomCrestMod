@@ -100,6 +100,7 @@ dff0ccc Fix HUD frame stuck hidden after switching crests
 - `CrestService.EnsureCreated`：**不要用一次性 `_created` 门禁**——`crestList` 是可变 ScriptableObject，换存档/场景会被重置，必须每帧检查 `GetByName(CrestName) == null` 再补注册。
 - 本地化：`CrestService.EnsureLocalisationCurrent` 按 `Language.CurrentLanguage()` 注入中/英，语言切换会重注入。
 - 完成度：`CrestPatches.PlayerData_CountGameCompletion_Postfix` 扣掉纷乱贡献的那 1 点；`ALL_CRESTS` 成就不动（纷乱始终解锁，分子分母平衡）。
+- 伊娃（Crest Upgrader）进度：她的 FSM（`weave_10`）用 PlayMaker 动作 `CountCrestUnlockPoints` 统计**所有非隐藏基础纹章的已解锁槽位总数**（阈值 11/12/20/27/32，判断只用 `Current`）。纷乱常解锁 + 6 槽会被计入，`CrestUpgraderPatches` 给该动作加 Postfix 把纷乱自己的贡献扣回（不写死 6，按同一套规则重算）。**不要删这个补丁。**
 - 调试：`DebugLogging` 写死 false；要看日志就把 `RandomCrestModPlugin.DebugLogging` 改成 true 再编译。
 
 ## 八、历史坑（不要重犯）

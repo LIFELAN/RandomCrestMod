@@ -63,6 +63,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
         _harmony.PatchAll(typeof(ReaperPayoutPatch));
         _harmony.PatchAll(typeof(AnimationFallbackPatches));
         _harmony.PatchAll(typeof(CrestPatches));
+        _harmony.PatchAll(typeof(CrestUpgraderPatches));
         _harmony.PatchAll(typeof(SaveProfileHealthBarPatch));
         _harmony.PatchAll(typeof(GetWillThrowToolWindowPatch));
         _harmony.PatchAll(typeof(GetBoundAttackToolPatch));
