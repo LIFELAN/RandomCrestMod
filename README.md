@@ -1,6 +1,9 @@
 # RandomCrestMod 使用说明（纷乱）
 
-**简体中文** | [English](README.en.md)
+**简体中文** | [English](https://github.com/LIFELAN/RandomCrestMod/blob/master/README.en.md)
+
+> 已发布到 Thunderstore（社区 **Hollow Knight: Silksong**），推荐用 mod 管理器（r2modman / Gale /
+> Thunderstore Mod Manager）搜索 **RandomCrestMod** 安装，会自动处理好 BepInEx 依赖。
 
 一个《空洞骑士：丝之歌》BepInEx 模组：新增一个纹章 **「纷乱」**（英文 **Chaos**）。
 装备它之后，攻击、缚丝、工具、法术全部随机 —— **你永远不知道下一秒会发生什么**。
@@ -12,7 +15,7 @@
 
 ## 安装
 
-1. 先安装 **BepInExPack Silksong**。
+1. 先安装 **BepInExPack Silksong**（用 mod 管理器会自动装好）。
 2. 将 `RandomCrestMod.dll` 放入：
 
    ```

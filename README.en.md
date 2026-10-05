@@ -1,6 +1,10 @@
 # RandomCrestMod
 
-[简体中文](README.md) | **English**
+[简体中文](https://github.com/LIFELAN/RandomCrestMod/blob/master/README.md) | **English**
+
+> Published on Thunderstore (community **Hollow Knight: Silksong**). The recommended way to install is a
+> mod manager (r2modman / Gale / Thunderstore Mod Manager): search for **RandomCrestMod** and it will pull
+> in the BepInEx dependency for you.
 
 A **Hollow Knight: Silksong** BepInEx mod that adds a new crest — **Chaos** (纷乱).
 Equip it and attacks, binds, tools and spells all become random: **you never know what will happen
@@ -18,7 +22,7 @@ crests are completely untouched.
 
 ## Installation
 
-1. Install **BepInExPack Silksong**.
+1. Install **BepInExPack Silksong** (a mod manager does this for you).
 2. Put `RandomCrestMod.dll` in:
 
    ```

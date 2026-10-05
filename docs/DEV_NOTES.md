@@ -139,3 +139,26 @@ dff0ccc Fix HUD frame stuck hidden after switching crests
   - `crestspools/`、`hudtk/`、`sil_all/` — 提取的游戏美术；
   - 各种 `dump_*.py` / `extract_*.py` — UnityPy 提取脚本（本地化需 `TeamCherry.SharedUtils` 的固定密钥 AES-ECB 解密）。
 - 构建需要 `SilksongPath.props`（已被 git 忽略），指向游戏目录。
+
+## 十一、Thunderstore 发布
+
+- 包标识：团队（namespace）**LIFELAN**，包名 **RandomCrestMod**，社区 **hollow-knight-silksong**。
+  （若 Thunderstore 上的团队名不是 `LIFELAN`，改 `thunderstore.toml` 的 `namespace`。）
+- 依赖：`BepInEx-BepInExPack_Silksong-5.4.2304`（Silksong 社区几乎所有 mod 都用这个版本）。
+- 安装布局：Silksong 的 install rule 把包**根目录**的 `.dll` 装到 `BepInEx/plugins/<包名>/`，
+  所以 `RandomCrestMod.dll` 直接放 zip 根目录，**不要**再套 `BepInEx/plugins/...`。
+- 打包工具：仓库已固定 `tcli`（`.config/dotnet-tools.json`）。本地：
+  ```sh
+  dotnet tool restore
+  dotnet build -c Release
+  dotnet tcli build          # 产出 dist/LIFELAN-RandomCrestMod-<ver>.zip
+  ```
+  或 `powershell -File tools/package.ps1`。
+- 首次上传（网页）：登录 thunderstore.io → 进入社区 `hollow-knight-silksong` → **Upload** →
+  选 `dist/LIFELAN-RandomCrestMod-<ver>.zip` 即可（zip 内已含 `manifest.json` / `icon.png` / `README.md`）。
+- 自动发布：`.github/workflows/publish-thunderstore.yml`，推 `v*` tag 触发。
+  需要在仓库 Secrets 里配置 `TCLI_AUTH_TOKEN`：
+  Thunderstore → **Settings → Teams → LIFELAN → Service Accounts → Add service account**，
+  复制 token（只显示一次）。没有 token 时 CI 只构建产物、不发包。
+- 版本号来源：`Directory.Build.props` 的 `<Version>`；`thunderstore.toml` 的 `versionNumber` 需手动保持一致。
+- `icon.png`（仓库根，256×256）由 `tmpwork/crest_icon_on_dark.png` 生成，仅用于商店图标。

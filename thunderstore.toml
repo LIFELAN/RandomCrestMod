@@ -1,0 +1,38 @@
+[config]
+schemaVersion = "0.0.1"
+
+[package]
+namespace = "LIFELAN"
+name = "RandomCrestMod"
+versionNumber = "0.1.2"
+description = "Adds the Chaos crest (纷乱): attacks, binds, tools and spells are all randomized while it is equipped. Unlocked from the start; swap it at any bench."
+websiteUrl = "https://github.com/LIFELAN/RandomCrestMod"
+containsNsfwContent = false
+
+[package.dependencies]
+"BepInEx-BepInExPack_Silksong" = "5.4.2304"
+
+[build]
+icon = "./icon.png"
+readme = "./README.md"
+outdir = "./dist"
+
+# Silksong mods are installed from the package root into BepInEx/plugins/<ModName>/.
+[[build.copy]]
+source = "./bin/Release/netstandard2.1/RandomCrestMod.dll"
+target = "./"
+
+[[build.copy]]
+source = "./bin/Release/netstandard2.1/RandomCrestMod.pdb"
+target = "./"
+
+[[build.copy]]
+source = "./CHANGELOG.md"
+target = "./"
+
+[publish]
+repository = "https://thunderstore.io"
+communities = ["hollow-knight-silksong"]
+
+[publish.categories]
+hollow-knight-silksong = ["custom-crests", "expansion"]

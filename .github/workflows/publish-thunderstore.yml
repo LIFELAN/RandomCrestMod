@@ -1,0 +1,72 @@
+name: Publish to Thunderstore
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: thunderstore-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Set the TCLI_AUTH_TOKEN secret (Thunderstore service-account token) to enable publishing.
+    # Without it the workflow still builds the package and uploads it as a workflow artifact.
+    env:
+      TCLI_AUTH_TOKEN: ${{ secrets.TCLI_AUTH_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Build (Release)
+        run: dotnet build -c Release
+
+      - name: Read package metadata
+        id: pkg
+        run: |
+          VERSION=$(grep -m1 'versionNumber' thunderstore.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          NAMESPACE=$(grep -m1 '^namespace' thunderstore.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          NAME=$(grep -m1 '^name[[:space:]]*=' thunderstore.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "namespace=$NAMESPACE" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "Package: $NAMESPACE-$NAME v$VERSION"
+
+      - name: Check tag matches version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          if [ "v${{ steps.pkg.outputs.version }}" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match thunderstore.toml version ${{ steps.pkg.outputs.version }}"
+            exit 1
+          fi
+
+      - name: Build Thunderstore package
+        run: dotnet tcli build
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pkg.outputs.namespace }}-${{ steps.pkg.outputs.name }}-${{ steps.pkg.outputs.version }}
+          path: dist/${{ steps.pkg.outputs.namespace }}-${{ steps.pkg.outputs.name }}-${{ steps.pkg.outputs.version }}.zip
+          if-no-files-found: error
+
+      - name: Skip notice (no token)
+        if: env.TCLI_AUTH_TOKEN == ''
+        run: echo "::warning::TCLI_AUTH_TOKEN is not set; skipping Thunderstore publish. Download the package zip from this run's artifacts."
+
+      - name: Publish to Thunderstore
+        if: env.TCLI_AUTH_TOKEN != ''
+        run: dotnet tcli publish --file dist/${{ steps.pkg.outputs.namespace }}-${{ steps.pkg.outputs.name }}-${{ steps.pkg.outputs.version }}.zip
