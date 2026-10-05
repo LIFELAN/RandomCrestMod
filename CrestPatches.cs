@@ -18,14 +18,18 @@ internal static class CrestPatches
 
         // The HUD / Bind Orb is rebuilt for the new save, so re-acquire the frame overlay.
         HudFrameService.Reset();
+
+        // Drop any taunt roll / Beast crest root we were holding.
+        RandomTauntService.Reset();
     }
 
-    /// <summary>Scene load / respawn: the HUD can be rebuilt here too, so drop the cached refs.</summary>
+    /// <summary>Scene load / respawn: the HUD and crest roots can be rebuilt here too.</summary>
     [HarmonyPatch(typeof(HeroController), "SceneInit")]
     [HarmonyPostfix]
     private static void HeroController_SceneInit_Postfix()
     {
         HudFrameService.Reset();
+        RandomTauntService.Reset();
     }
 
     /// <summary>

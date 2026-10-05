@@ -3,14 +3,14 @@
 > 这份是给后续（重启对话后）的自己和 AI 用的开发笔记，记录**现状、关键决定、坑和待办**。
 > 面向玩家的说明见仓库根目录 `README.md` / `README.en.md`。
 
-## 一、当前状态（截至 v0.1.2）
+## 一、当前状态（截至 v0.1.4）
 
 - 编译：`dotnet build -c Debug`，**0 警告 0 错误**。
 - 已安装：`<游戏>/BepInEx/plugins/lifelan-RandomCrestMod/RandomCrestMod.dll`（构建会自动复制）。
 - 仓库：https://github.com/LIFELAN/RandomCrestMod（默认分支 `master`）。
 - 工作区应保持干净；本文件是唯一可能未提交的新增项。
 
-最近提交：
+最近提交（v0.1.4 新增随机嘲讽 / 电枢球双形态；详见 `CHANGELOG.md`）：
 ```
 43e1add Let the Flea Charm stack with the Chaos silk discount
 7af9189 Correct the skid-bind trade-off note
@@ -32,10 +32,11 @@ dff0ccc Fix HUD frame stuck hidden after switching crests
 ## 三、功能开关与门控（重要）
 
 - `RandomCrestModPlugin` 里，除 `ToolUsesPerBench` 外全是 **写死的 static readonly**：
-  `EnableRandomAttacks / EnableRandomBind / EnableRandomTools / EnableRandomSpells / EnableCustomHudFrame / EnableCustomSaveSpool / EnableRandomIcons / OnlyOnRandomCrest(true) / DebugLogging(false)`。
+  `EnableRandomAttacks / EnableRandomBind / EnableRandomTools / EnableRandomSpells / EnableCustomHudFrame / EnableCustomSaveSpool / EnableRandomIcons / EnableRandomTaunt / OnlyOnRandomCrest(true) / DebugLogging(false)`。
 - **所有随机效果只在装备纷乱时生效**：
   - 攻击/缚丝：`RandomCrestModPlugin.OnlyOnRandomCrest && CrestService.IsRandomCrestEquipped()`；
   - 工具/法术：`RandomToolService.GateOpen`（同上）；
+  - 嘲讽：`RandomTauntService.Roll` / `Tick` 里的 `IsRandomCrestEquipped()`；
   - 随机图标：`RandomIconService.For` 走 `RandomToolsActive/RandomSpellsActive`；
   - HUD 外框：`HudFrameService.Tick` 检查 `IsRandomCrestEquipped()`。
 - 唯一配置项：`[Tools] ToolUsesPerBench = 20`（坐椅子补满次数，补充免费）。
@@ -69,12 +70,48 @@ dff0ccc Fix HUD frame stuck hidden after switching crests
 - 用 `GetWillThrowTool` 的 prefix/postfix 开一个"窗口"（`IsPicking`），只在投掷路径重掷，避免报告逻辑重复随机。
 - 替换点在 `GetBoundAttackTool` 的 `ToolReturn Active` 分支；`ThrowTool` 会用 `GetAttackToolBinding` 反推 binding，所以补丁里对 spoof 工具返回按下的 binding。
 - 池：`ToolItemType.Red`（工具）与 `ToolItemType.Skill`（法术，6 个）。
-- **硬编码排除**：`Extractor`(Needle Phial)、`Silk Snare`(Snare Setter)。
-- **特殊处理**：`Lightning Rod`(Voltvessels) 强制投掷(bola)形态（PlayerData bool `LightningToolToggle=true`）；`Rosary Cannon` 保持满充能、且不进入共享次数。
+- **硬编码排除**：`Extractor`(Needle Phial)、`Silk Snare`(Snare Setter)、`Rosary Cannon`(念珠炮，使用方式特殊 + 快速连投容易哑弹)。
+- **特殊处理**：`Lightning Rod`(Voltvessels / 电枢球) 每次抽取时随机掷 `offState`(标枪，FSM 事件
+  `LIGHTNING ROD`) / `onState`(流星锤，ThrowPrefab)，即 `RandomToolService.RollToggleState()`。该形态存在
+  `PlayerData.LightningToolToggle`，所以 `RollToggleState` 会先快照玩家自己的值，`RestoreToggleState` 在
+  投掷后 0.5s（`Tick`）或卸下纷乱时还原，尽量不动存档（`OnSaveLoaded` 清空快照）。**标枪形态是否能
+  在随机替换下正常出招待实测**。
 - 共享次数：`_usesLeft` 初始 20，所有 Red 工具同步，坐椅子/读档 `ResetUses`；`BeginFreeRefill/EndFreeRefill` 临时把 Red 工具的 `replenishResource=None` 让补充免费（其它纹章不受影响）。
 - 计数补丁：`GetToolStorageAmount`、`HeroController.CanThrowTool`、`HeroController.DidUseAttackTool`、`ToolItemManager.TryReplenishTools`。
 - 绑定/法术只在装备纷乱时替换（`RandomToolsActive/RandomSpellsActive`）。
 - **法术费用**：`PlayerDataSilkSkillCostPatch` 在 `RandomSpellsActive` 时把 `PlayerData.SilkSkillCost` 整体减 `RandomCrestModPlugin.RandomSpellSilkDiscount`（默认 1，下限 1）：原版 4 → 3，满血带蚤母卵（原版 3）→ 2，所以**蚤母卵在纷乱上仍有效**。判定（`CanThrowTool`）/ HUD 图标（`ToolHudIcon`）/ 所有技能 FSM 的 `TakeSilk`（经 `GetPlayerDataVariable` 读该属性）都读它，所以自动一致；缚丝（`SilkSpool.BindCost`）和工具（`Usage.SilkRequired`）完全不受影响。
+
+## 五之二、随机嘲讽（`RandomTauntService` / `RandomTauntPatches`）
+
+- 嘲讽由大黄蜂身上的 **`Silk Specials`** FSM 驱动（只在落地按 R3/V 时生效；空中 Taunt 直接结束）。
+- 三种形态的判定：
+  - `Silk Check` 状态用 `GetToolEquipInfo`/`IntTestToBool`/`CheckIfToolEquipped` 检查 **`Shakra Ring`（投掷环）**
+    是否装备且数量足够；`BoolAllTrue` 全真 → 事件 `RINGS` → `Taunt Antic Rings`/`Taunt Rings`（独立动画）。
+  - 否则 `PlayerdataIntCompare`(PlayerData `silk` vs 嘲讽消耗) 分岔：够丝走 `Silk Taunt`（耗丝），
+    不够走 `SILKLESS`；两者最后都到 `Voice Type`，用 `CheckIfCrestEquipped` 检查 **`ToolCrest Warrior`
+    （内部名，显示名就是「野兽」）** → `Beast`（粗犷音效）或 `Standard`。
+- 实现：`ListenForTauntV2.OnUpdate` prefix 在事件发出前 roll 一个 `TauntFlavour`；随后只在
+  `Silk Specials` 的 `Silk Check` / `Voice Type` 这两个状态里覆盖对应判定：
+  - `CheckIfCrestEquipped.IsTrue`：命中 Beast 纹章时直接 `__result = IsBeast`（同时压过可能残留的攻击 spoof）。
+  - `CheckIfToolEquipped.IsTrue` / `GetToolEquipInfo.DoAction` / `IntTestToBool.DoCompare`：Rings 时把
+    "Rings Equipped" / "Has Two Rings" 置真（只写 FSM 变量，**不碰 PlayerData / 工具数据**）。
+- **动作/特效匹配（已改为真·换 config，之前的手动开 root + 覆写 TauntSlash 不稳定，已弃）**：
+  嘲讽的动作不是由 `CheckIfCrestEquipped` 决定的，而是 `Taunt` 状态里 `GetHeroAttackObject(TauntSlash)`
+  读的 `HeroController.CurrentConfigGroup.TauntSlash`，再在 `Taunt Slash` 状态激活。野兽（Warrior）领一个
+  **独占的** `TauntSlash`（在 `Hero_Hornet/Attacks/Warrior/Taunt Slash`，需要 Warrior 的 ActiveRoot 开着），
+  其余纹章共用英雄根下的 `Hero_Hornet/Taunt Slash`。所以 roll 到野兽时：
+  - `RandomTauntService.Roll` 调 `RandomAttackService.ApplyTauntHold(Gameplay.WarriorCrest)`；
+    后者用 `FindGroup`（先按 `crest.HeroConfig` 引用、再按 config 名字匹配）找到 Warrior 的 ConfigGroup，
+    再 `ApplyGroup(..., quiet:true)` 换过去，并置 `_tauntHold`。
+  - `RandomAttackService.Tick` 在 `_tauntHold` 时提前 return（不自动 restore，只处理死亡/切场景），
+    `Restore` 的守卫也把 `_tauntHold` 算进去。
+  - 普通/投掷环调 `ReleaseTauntHold()`（换回真实纹章）——`Tick` 在 FSM 回 `Idle`/卸下纷乱/超时 5s 时
+    会 `Clear` 并自动释放。
+  - `_tauntHold` 与 `_active/_nailArtActive/_bindActive/_dashActive` 互斥（apply 前会检查，避免抢
+    正在进行的攻击 config）。
+- 所有覆盖都用 `IsInState()` 校验 `action.Fsm.Name == "Silk Specials"` 且 `ActiveStateName` 匹配，
+  所以同样的 PlayMaker Action 在攻击/缚丝等其它地方完全不受影响。
+- 其它纹章完全不受影响：没装备纷乱时 `Roll`/`Tick` 直接 `Clear`。
 
 ## 六、HUD / 存档界面美术
 
@@ -123,6 +160,11 @@ dff0ccc Fix HUD frame stuck hidden after switching crests
 - [x] 野兽/收割者疾风步/滑步缚丝正常获得 Rage/Reaper buff（同一根因：`TickDash` 提前 `Restore`）。
 - [x] 疾风步/空中疾风步/滑步里的普通、上、下劈砍也随机（`ApplyIfRequested` 改为静默换配置）。
 - [x] 纷乱法术费用降为 3 格（`PlayerDataSilkSkillCostPatch`）；满血带蚤母卵再叠到 2 格。
+- [ ] **实测电枢球（Voltvessels）标枪形态**：随机掷到 `offState`（FSM 事件 `LIGHTNING ROD`）时能否
+  正常出招、共享次数是否正常扣。若不能，考虑 `RollToggleState` 只保留流星锤。
+- [ ] **实测嘲讽三形态**：普通 / 野兽吼叫 / 投掷环是否都能正确触发；确认野兽形态的
+  独占 `TauntSlash` 动作能随声音一起出现（Warrior root 开关正确、`Taunt Slash` 变量被覆写），
+  并确认 Rings 的 `BoolAllTrue` 只依赖我们已覆盖的 bool。
 - [ ] （可选）滑步缚丝时 Sprint FSM 的缓存冲刺劈砍对象不会随 bind 刷新；目前靠下一次冲刺劈砍重掷兜底，未发现可见问题。
 - [ ] （可选）SilkCurseMod 兼容：让 SilkCurseMod 在装备纷乱时让路。
 - [ ] （可选）随机结果临时日志，验证 7 纹章均匀分布。

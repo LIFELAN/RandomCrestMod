@@ -58,14 +58,17 @@ like vanilla for every other crest.
 | Random bind | Every bind uses a random crest's bind effect. |
 | Random tools | Every thrown tool becomes a random Red tool from the whole game — obtained or not. |
 | Random spells | Every cast silk skill becomes one of the six silk skills at random. |
+| Random taunt | Pressing the taunt button (R3 / V) plays a random one of the three vanilla flavours: standard, Beast crest battle-cry, or the Shakra Ring toss. The Beast flavour also switches in the Beast crest's unique taunt visual. |
 | Tool budget | Tools share **20 uses per bench** (configurable) and refill for **free**. |
 | Custom HUD | A custom bind-orb frame, fixed "random" tool / spell HUD icons, and a custom crest spool on the save-selection screen. |
 
 ### Special tool handling
 
-- `Extractor` (**Needle Phial**) and `Silk Snare` (**Snare Setter**) are excluded from the random
-  tool pool — they do not work when thrown at random.
-- `Lightning Rod` (**Voltvessels**) is always forced into its thrown **bola** form.
+- `Extractor` (**Needle Phial**), `Silk Snare` (**Snare Setter**) and `Rosary Cannon` are excluded
+  from the random tool pool — the first two do not work when thrown at random, and the Rosary
+  Cannon's usage differs and it misfires under rapid tool use.
+- `Lightning Rod` (**Voltvessels**) rolls randomly between its thrown **bola** and staked **spear**
+  forms on every pick; the player's own form setting is restored afterwards.
 - `Rosary Cannon` is kept **fully charged**, so it always uses its charged form.
 
 ---
@@ -80,7 +83,7 @@ Config file: `BepInEx/config/io.github.lifelan.randomcrestmod.cfg`
 
 > Everything else is **hardcoded** (tuned during development): random attacks / binds / tools /
 > spells are always on and only apply to the Chaos crest; the excluded tools are fixed to Needle
-> Phial and Snare Setter; Voltvessels is fixed to its bola form; Rosary Cannon is kept fully
+> Phial and Snare Setter; Voltvessels rolls both of its forms; Rosary Cannon is kept fully
 > charged; the custom HUD frame, save spool and random icons are always on, and the HUD frame
 > offset/scale are fixed too.
 

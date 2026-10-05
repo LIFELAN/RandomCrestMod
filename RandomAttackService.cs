@@ -45,6 +45,7 @@ internal static class RandomAttackService
     private static PlayMakerFSM? _bindFsm;
     private static bool _dashActive;
     private static float _dashLastActive;
+    private static bool _tauntHold;
     private static bool _suppressConfigUpdated;
     private static PlayMakerFSM? _nailArtsFsm;
 
@@ -240,6 +241,82 @@ internal static class RandomAttackService
     }
 
     /// <summary>
+    /// Holds a crest's config group for the duration of a taunt (the Beast taunt's unique visual
+    /// lives under the Warrior crest root, which only this swap enables). Quiet swap so the Sprint
+    /// FSM is not cancelled - a taunt can only start on the ground. Released by
+    /// <see cref="ReleaseTauntHold"/> when the taunt FSM returns to Idle.
+    /// </summary>
+    internal static void ApplyTauntHold(ToolCrest? crest)
+    {
+        if (crest == null)
+        {
+            return;
+        }
+
+        // Never clobber an attack / bind / dash that owns the config right now; a taunt cannot
+        // legitimately start while one of those is running anyway.
+        if (_active || _nailArtActive || _bindActive || _dashActive)
+        {
+            return;
+        }
+
+        try
+        {
+            var hero = HeroController.instance;
+            if (hero == null)
+            {
+                return;
+            }
+
+            var group = FindGroup(hero, crest);
+            if (group == null)
+            {
+                return;
+            }
+
+            ApplyGroup(hero, group, quiet: true);
+            _tauntHold = true;
+            _active = false;
+            _nailArtActive = false;
+            _bindActive = false;
+            _activateTime = Time.time;
+
+            RandomCrestModPlugin.Log($"Random taunt hold -> config='{(group.Config != null ? group.Config.name : "?")}'.");
+        }
+        catch (Exception e)
+        {
+            RandomCrestModPlugin.LogError("RandomAttackService.ApplyTauntHold failed: " + e);
+        }
+    }
+
+    /// <summary>Releases a crest config held for a taunt, restoring the real equipped crest.</summary>
+    internal static void ReleaseTauntHold()
+    {
+        if (!_tauntHold)
+        {
+            return;
+        }
+
+        try
+        {
+            var hero = HeroController.instance;
+            if (hero != null)
+            {
+                // Restore clears _tauntHold itself (it is part of its guard).
+                Restore(hero);
+                return;
+            }
+        }
+        catch (Exception e)
+        {
+            RandomCrestModPlugin.LogError("RandomAttackService.ReleaseTauntHold failed: " + e);
+        }
+
+        // No hero to restore onto (or restore threw): drop the hold so it cannot linger.
+        _tauntHold = false;
+    }
+
+    /// <summary>
     /// True while the game's Bind FSM is in the Spell (Shaman) air-dive states. Used by the
     /// surface-water safety net: the reject branch only nudges the hero up once, but the Shaman
     /// Fall state keeps re-applying its own downward velocity, so without this the hero tunnels
@@ -295,8 +372,22 @@ internal static class RandomAttackService
                 _nailArtActive = false;
                 _bindActive = false;
                 _dashActive = false;
+                _tauntHold = false;
                 IsSpoofing = false;
                 SpoofCrest = null;
+                return;
+            }
+
+            // A taunt owns the crest config for its whole duration; only bail out on death / scene
+            // transitions (the taunt service releases it when the FSM returns to Idle).
+            if (_tauntHold)
+            {
+                var cs0 = hero.cState;
+                if (cs0.dead || cs0.hazardDeath || cs0.hazardRespawning || cs0.transitioning)
+                {
+                    ReleaseTauntHold();
+                }
+
                 return;
             }
 
@@ -446,7 +537,7 @@ internal static class RandomAttackService
 
     private static void Restore(HeroController hero)
     {
-        if (!_active && !_nailArtActive && !_bindActive && !_dashActive)
+        if (!_active && !_nailArtActive && !_bindActive && !_dashActive && !_tauntHold)
         {
             return;
         }
@@ -462,7 +553,41 @@ internal static class RandomAttackService
         _bindWasBinding = false;
         _bindCancelSent = false;
         _dashActive = false;
-        RandomCrestModPlugin.Log($"Random attack/charge/bind/dash restored after {(Time.time - _activateTime):F2}s.");
+        _tauntHold = false;
+        RandomCrestModPlugin.Log($"Random attack/charge/bind/dash/taunt restored after {(Time.time - _activateTime):F2}s.");
+    }
+
+    private static HeroController.ConfigGroup? FindGroup(HeroController hero, ToolCrest crest)
+    {
+        try
+        {
+            var configs = GetConfigs(hero);
+            if (configs == null)
+            {
+                return null;
+            }
+
+            var heroConfig = crest.HeroConfig;
+            foreach (var group in configs)
+            {
+                if (group == null || group.Config == null)
+                {
+                    continue;
+                }
+
+                if (ReferenceEquals(group.Config, heroConfig)
+                    || (heroConfig != null && group.Config.name == heroConfig.name))
+                {
+                    return group;
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            RandomCrestModPlugin.LogError("RandomAttackService.FindGroup failed: " + e.Message);
+        }
+
+        return null;
     }
 
     // ------------------------------------------------------------------ dash / sprint attacks

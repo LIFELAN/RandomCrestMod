@@ -32,6 +32,9 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 
     internal static readonly bool EnableRandomIcons = true;
 
+    /// <summary>Randomises Hornet's taunt (R3 / V) into its standard / Beast / ring-toss flavours.</summary>
+    internal static readonly bool EnableRandomTaunt = true;
+
     internal static readonly bool OnlyOnRandomCrest = true;
 
     /// <summary>Silk shaved off every silk skill while the mod crest's random spells are active
@@ -60,6 +63,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 
         _harmony = new Harmony(Info.Metadata.GUID);
         _harmony.PatchAll(typeof(RandomAttackPatches));
+        _harmony.PatchAll(typeof(RandomTauntPatches));
         _harmony.PatchAll(typeof(ReaperPayoutPatch));
         _harmony.PatchAll(typeof(AnimationFallbackPatches));
         _harmony.PatchAll(typeof(CrestPatches));
@@ -177,6 +181,7 @@ internal sealed class RandomCrestRunner : MonoBehaviour
         RandomAttackService.Tick();
         RandomBindService.Tick();
         RandomToolService.Tick();
+        RandomTauntService.Tick();
         CrestService.EnsureCreated();
         CrestService.EnsureUnlocked();
     }

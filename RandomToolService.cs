@@ -17,10 +17,9 @@ namespace RandomCrestMod;
 /// obtained yet.</para>
 ///
 /// <para>Normal Red tools share a single <see cref="_usesLeft"/> counter that is reset at every
-/// bench (and on save load). A few tools are special-cased: <c>Extractor</c> (Needle Phial) and
-/// <c>Silk Snare</c> (Snare Setter) are excluded from the pool, <c>Lightning Rod</c> (Voltvessels)
-/// is forced into its thrown bola form, and <c>Rosary Cannon</c> is kept fully charged instead of
-/// tracking the shared counter.</para>
+/// bench (and on save load). A few tools are special-cased: <c>Extractor</c> (Needle Phial),
+/// <c>Silk Snare</c> (Snare Setter) and <c>Rosary Cannon</c> are excluded from the pool, and
+/// <c>Lightning Rod</c> (Voltvessels) rolls between its two vanilla forms on every pick.</para>
 ///
 /// <para>Everything here is gated by <see cref="RandomToolsActive"/> / <see cref="RandomSpellsActive"/>
 /// so that nothing (counts, refills, forms) leaks onto other crests.</para>
@@ -29,11 +28,10 @@ internal static class RandomToolService
 {
     /// <summary>
     /// Internal names excluded from the pool because they do not work when thrown at random:
-    /// Extractor (Needle Phial) and Silk Snare (Snare Setter).
+    /// Extractor (Needle Phial), Silk Snare (Snare Setter) and Rosary Cannon (its usage differs and
+    /// it misfires under rapid tool use).
     /// </summary>
-    private static readonly string[] DefaultExcluded = { "Extractor", "Silk Snare" };
-
-    private const string ChargedToolName = "Rosary Cannon";
+    private static readonly string[] DefaultExcluded = { "Extractor", "Silk Snare", "Rosary Cannon" };
 
     private const string ToggleToolName = "Lightning Rod";
 
@@ -50,6 +48,13 @@ internal static class RandomToolService
     private static bool _poolsBuilt;
     private static bool _initialized;
     private static int _usesLeft;
+
+    // Voltvessels' form lives in PlayerData, so we remember the player's own value and put it back
+    // as soon as the throw is over (or the crest is unequipped) to keep the save untouched.
+    private static bool _toggleTracked;
+    private static bool _toggleOriginal;
+    private static bool _togglePendingRestore;
+    private static float _toggleSetTime;
 
     private static FieldInfo? _replenishResourceField;
 
@@ -91,7 +96,15 @@ internal static class RandomToolService
         if (!RandomToolsActive)
         {
             _initialized = false;
+            RestoreToggleState();
             return;
+        }
+
+        // A pick that never turned into a throw (e.g. the shared budget ran out) leaves the toggle
+        // flipped; put it back once the throw window is safely over.
+        if (_togglePendingRestore && !_picking && Time.time - _toggleSetTime > 0.5f)
+        {
+            RestoreToggleState();
         }
 
         if (!_initialized)
@@ -147,8 +160,7 @@ internal static class RandomToolService
 
     /// <summary>
     /// Picks the stand-in tool for a throw. Normal Red picks mirror the shared counter onto the
-    /// chosen tool so the vanilla empty check lines up with the shared budget; special tools keep
-    /// their required form.
+    /// chosen tool so the vanilla empty check lines up with the shared budget.
     /// </summary>
     internal static ToolItem? PickRedForUse()
     {
@@ -159,18 +171,11 @@ internal static class RandomToolService
             return null;
         }
 
-        if (IsForcedCharged(pick))
-        {
-            EnsureCharged(pick);
-        }
-        else
-        {
-            SetAmount(pick, _usesLeft);
-        }
+        SetAmount(pick, _usesLeft);
 
         if (IsToggleTool(pick))
         {
-            ForceToggleState();
+            RollToggleState();
         }
 
         return pick;
@@ -195,12 +200,7 @@ internal static class RandomToolService
     /// <summary>True for pool tools that follow the shared use counter.</summary>
     internal static bool IsSharedCounterTool(ToolItem? tool)
     {
-        return IsRedPoolTool(tool) && !IsForcedCharged(tool);
-    }
-
-    private static bool IsForcedCharged(ToolItem? tool)
-    {
-        return tool != null && string.Equals(tool.name, ChargedToolName, StringComparison.Ordinal);
+        return IsRedPoolTool(tool);
     }
 
     private static bool IsToggleTool(ToolItem? tool)
@@ -319,6 +319,9 @@ internal static class RandomToolService
     /// <summary>Called once per loaded save: rebuild the pools so the next active frame refills them.</summary>
     internal static void OnSaveLoaded()
     {
+        // The game swapped in a fresh PlayerData; forget the previous save's Voltvessels snapshot.
+        _toggleTracked = false;
+        _togglePendingRestore = false;
         _poolsBuilt = false;
         _initialized = false;
         EnsurePools();
@@ -328,37 +331,76 @@ internal static class RandomToolService
     {
         foreach (var tool in RedPool)
         {
-            if (IsForcedCharged(tool))
-            {
-                EnsureCharged(tool);
-                continue;
-            }
-
             SetAmount(tool, _usesLeft);
         }
     }
 
-    /// <summary>Keeps a special tool at its real (charged) capacity.</summary>
-    private static void EnsureCharged(ToolItem tool)
-    {
-        SetAmount(tool, ToolItemManager.GetToolStorageAmount(tool));
-    }
-
-    /// <summary>Forces Voltvessels into its thrown (bola) form.</summary>
-    private static void ForceToggleState()
+    /// <summary>
+    /// Rolls Voltvessels between its two vanilla forms (thrown bola / staked spear) for this pick.
+    /// The form is a persisted PlayerData bool, so the player's own value is snapshotted the first
+    /// time we touch it and restored afterwards - the save is left exactly as the player had it.
+    /// </summary>
+    private static void RollToggleState()
     {
         try
         {
             var playerData = PlayerData.instance;
-            if (playerData != null && !playerData.GetVariable<bool>(ToggleStateField))
+            if (playerData == null)
             {
-                playerData.SetVariable(ToggleStateField, true);
-                RandomCrestModPlugin.Log("[RandomTool] Voltvessels forced to thrown form.");
+                return;
             }
+
+            var current = playerData.GetVariable<bool>(ToggleStateField);
+            if (!_toggleTracked)
+            {
+                _toggleTracked = true;
+                _toggleOriginal = current;
+            }
+
+            var desired = UnityEngine.Random.value < 0.5f;
+            if (current != desired)
+            {
+                playerData.SetVariable(ToggleStateField, desired);
+            }
+
+            _togglePendingRestore = true;
+            _toggleSetTime = Time.time;
+            RandomCrestModPlugin.Log("[RandomTool] Voltvessels rolled to " + (desired ? "thrown" : "staked") + " form.");
         }
         catch (Exception e)
         {
-            RandomCrestModPlugin.LogError("[RandomTool] ForceToggleState failed: " + e.Message);
+            RandomCrestModPlugin.LogError("[RandomTool] RollToggleState failed: " + e.Message);
+        }
+    }
+
+    /// <summary>Puts the player's own Voltvessels form back; safe to call when nothing was changed.</summary>
+    private static void RestoreToggleState()
+    {
+        if (!_toggleTracked)
+        {
+            return;
+        }
+
+        try
+        {
+            var playerData = PlayerData.instance;
+            if (playerData == null)
+            {
+                // PlayerData is momentarily unavailable (scene load); retry on a later Tick.
+                return;
+            }
+
+            if (playerData.GetVariable<bool>(ToggleStateField) != _toggleOriginal)
+            {
+                playerData.SetVariable(ToggleStateField, _toggleOriginal);
+            }
+
+            _toggleTracked = false;
+            _togglePendingRestore = false;
+        }
+        catch (Exception e)
+        {
+            RandomCrestModPlugin.LogError("[RandomTool] RestoreToggleState failed: " + e.Message);
         }
     }
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.4
+
+- The Voltvessels (电枢球) now rolls randomly between its thrown bola and staked spear forms every
+  time it is picked. The player's own form setting is restored afterwards, so the save is untouched.
+- Hornet's taunt (R3 / V) now randomly plays one of its three vanilla flavours: the standard
+  flourish, the Beast crest battle-cry, or the Shakra Ring (投掷环) toss. The Beast flavour also
+  enables the Beast crest's unique taunt visual, so the animation matches the voice.
+- Removed Rosary Cannon (念珠炮) from the random tool pool: its usage differs and it misfires under
+  rapid tool use.
+
 ## 0.1.3
 
 - The crest upgrader (伊娃 / Eva) no longer counts the Chaos crest's slots, so her awakening /
