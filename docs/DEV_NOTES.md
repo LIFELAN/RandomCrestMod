@@ -3,7 +3,7 @@
 > 这份是给后续（重启对话后）的自己和 AI 用的开发笔记，记录**现状、关键决定、坑和待办**。
 > 面向玩家的说明见仓库根目录 `README.md` / `README.en.md`。
 
-## 一、当前状态（截至 v0.1.4）
+## 一、当前状态（截至 v0.1.6）
 
 - 编译：`dotnet build -c Debug`，**0 警告 0 错误**。
 - 已安装：`<游戏>/BepInEx/plugins/lifelan-RandomCrestMod/RandomCrestMod.dll`（构建会自动复制）。
@@ -70,7 +70,7 @@ dff0ccc Fix HUD frame stuck hidden after switching crests
 - 用 `GetWillThrowTool` 的 prefix/postfix 开一个"窗口"（`IsPicking`），只在投掷路径重掷，避免报告逻辑重复随机。
 - 替换点在 `GetBoundAttackTool` 的 `ToolReturn Active` 分支；`ThrowTool` 会用 `GetAttackToolBinding` 反推 binding，所以补丁里对 spoof 工具返回按下的 binding。
 - 池：`ToolItemType.Red`（工具）与 `ToolItemType.Skill`（法术，6 个）。
-- **硬编码排除**：`Extractor`(Needle Phial)、`Silk Snare`(Snare Setter)、`Rosary Cannon`(念珠炮，使用方式特殊 + 快速连投容易哑弹)。
+- **硬编码排除**：`Extractor`(Needle Phial)、`Silk Snare`(Snare Setter)、`Rosary Cannon`(念珠炮，使用方式特殊 + 快速连投容易哑弹)、`Screw Attack`(Delver's Drill / 掘洞钻，向下突进的钻头，随机投掷无法正常工作)。
 - **特殊处理**：`Lightning Rod`(Voltvessels / 电枢球) 每次抽取时随机掷 `offState`(标枪，FSM 事件
   `LIGHTNING ROD`) / `onState`(流星锤，ThrowPrefab)，即 `RandomToolService.RollToggleState()`。该形态存在
   `PlayerData.LightningToolToggle`，所以 `RollToggleState` 会先快照玩家自己的值，`RestoreToggleState` 在
@@ -112,6 +112,21 @@ dff0ccc Fix HUD frame stuck hidden after switching crests
 - 所有覆盖都用 `IsInState()` 校验 `action.Fsm.Name == "Silk Specials"` 且 `ActiveStateName` 匹配，
   所以同样的 PlayMaker Action 在攻击/缚丝等其它地方完全不受影响。
 - 其它纹章完全不受影响：没装备纷乱时 `Roll`/`Tick` 直接 `Clear`。
+
+## 五之三、十字绣强化（`ParryAutoCounterService` / `ParryClashEffectPatch` / `HeroHighlight`）
+
+- **只在装备纷乱时生效**（`CrestService.IsRandomCrestEquipped()`），其它纹章完全原版。
+- **自动反击**（`ParryAutoCounterService` + `ParryAutoCounterPatch`）：`Silk Specials` FSM 的 `Parry Stance`
+  状态里 `FINISHED` 出口从 `Parry Recover` 改到 `Parry Clash`（`ToState` 与 `ToFsmState` 都要改，
+  `Fsm.DoTransition` 只读后者）。FSM 实例是所有纹章共享的，所以 `Tick()`（挂在 `RandomCrestRunner.Update`）
+  每帧按纹章 apply/restore。
+- **去火花**（`ParryClashEffectPatch`）：`ActivateGameObject.OnEnter` 前缀，只跳过对 `Parry Clash Effect`
+  的**激活**；`Cancel All` 的取消激活照常放行。
+- **后退高光**（`HeroHighlight` + `HeroHighlightPatch`）：只在 `Parry Clash` 期间给英雄本体渲染器写
+  `_FlashAmount` / `_FlashColor`（`1` / `FFE0F0`，写死在 `RandomCrestModPlugin`），离开该状态时清 0。
+  **只抬不压**，不干扰游戏自己的受击 / 无敌闪白。注意：游戏的 `SpriteFlash` 只在有 flash 时才刷新
+  `_FlashAmount`，所以必须显式清 0，否则会残留。
+- 配置项仍**只有** `Tools/ToolUsesPerBench`，高光数值等全部写死。
 
 ## 六、HUD / 存档界面美术
 

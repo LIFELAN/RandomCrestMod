@@ -4,7 +4,7 @@ schemaVersion = "0.0.1"
 [package]
 namespace = "LIFELAN"
 name = "RandomCrestMod"
-versionNumber = "0.1.5"
+versionNumber = "0.1.6"
 description = "Adds the Chaos crest (纷乱): attacks, binds, tools and spells are all randomized while it is equipped. Unlocked from the start; swap it at any bench."
 websiteUrl = "https://github.com/LIFELAN/RandomCrestMod"
 containsNsfwContent = false

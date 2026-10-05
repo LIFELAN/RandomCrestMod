@@ -18,7 +18,8 @@ namespace RandomCrestMod;
 ///
 /// <para>Normal Red tools share a single <see cref="_usesLeft"/> counter that is reset at every
 /// bench (and on save load). A few tools are special-cased: <c>Extractor</c> (Needle Phial),
-/// <c>Silk Snare</c> (Snare Setter) and <c>Rosary Cannon</c> are excluded from the pool, and
+/// <c>Silk Snare</c> (Snare Setter), <c>Rosary Cannon</c> and <c>Screw Attack</c> (Delver's Drill)
+/// are excluded from the pool, and
 /// <c>Lightning Rod</c> (Voltvessels) rolls between its two vanilla forms on every pick.</para>
 ///
 /// <para>Everything here is gated by <see cref="RandomToolsActive"/> / <see cref="RandomSpellsActive"/>
@@ -28,10 +29,11 @@ internal static class RandomToolService
 {
     /// <summary>
     /// Internal names excluded from the pool because they do not work when thrown at random:
-    /// Extractor (Needle Phial), Silk Snare (Snare Setter) and Rosary Cannon (its usage differs and
-    /// it misfires under rapid tool use).
+    /// Extractor (Needle Phial), Silk Snare (Snare Setter), Rosary Cannon (its usage differs and it
+    /// misfires under rapid tool use) and Screw Attack (Delver's Drill / 掘洞钻, its downward dive
+    /// does not work when thrown at random).
     /// </summary>
-    private static readonly string[] DefaultExcluded = { "Extractor", "Silk Snare", "Rosary Cannon" };
+    private static readonly string[] DefaultExcluded = { "Extractor", "Silk Snare", "Rosary Cannon", "Screw Attack" };
 
     private const string ToggleToolName = "Lightning Rod";
 

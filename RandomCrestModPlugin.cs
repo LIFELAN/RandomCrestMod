@@ -35,6 +35,22 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
     /// <summary>Randomises Hornet's taunt (R3 / V) into its standard / Beast / ring-toss flavours.</summary>
     internal static readonly bool EnableRandomTaunt = true;
 
+    /// <summary>Lets the Cross Stitch (十字绣 / Parry) skill counter even when the hero is not hit
+    /// during the stance. Only active while the Chaos crest is equipped.</summary>
+    internal static readonly bool EnableParryAutoCounter = true;
+
+    /// <summary>When false, suppresses the "Parry Clash Effect" hit spark that pops on Hornet's
+    /// needle when the stance is struck. Only active while the Chaos crest is equipped; the clash
+    /// animation / audio are unaffected.</summary>
+    internal static readonly bool EnableParryClashEffect = false;
+
+    /// <summary>Highlight strength applied to Hornet during the Cross Stitch retreat step, only
+    /// while the Chaos crest is equipped (0 = off).</summary>
+    internal static readonly float HeroHighlightAmount = 1f;
+
+    /// <summary>Highlight colour as hex RGB (pinkish white).</summary>
+    internal static readonly string HeroHighlightColor = "FFE0F0";
+
     internal static readonly bool OnlyOnRandomCrest = true;
 
     /// <summary>Silk shaved off every silk skill while the mod crest's random spells are active
@@ -64,6 +80,9 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
         _harmony = new Harmony(Info.Metadata.GUID);
         _harmony.PatchAll(typeof(RandomAttackPatches));
         _harmony.PatchAll(typeof(RandomTauntPatches));
+        _harmony.PatchAll(typeof(ParryAutoCounterPatch));
+        _harmony.PatchAll(typeof(ParryClashEffectPatch));
+        _harmony.PatchAll(typeof(HeroHighlightPatch));
         _harmony.PatchAll(typeof(ReaperPayoutPatch));
         _harmony.PatchAll(typeof(AnimationFallbackPatches));
         _harmony.PatchAll(typeof(CrestPatches));
@@ -182,6 +201,7 @@ internal sealed class RandomCrestRunner : MonoBehaviour
         RandomBindService.Tick();
         RandomToolService.Tick();
         RandomTauntService.Tick();
+        ParryAutoCounterService.Tick();
         CrestService.EnsureCreated();
         CrestService.EnsureUnlocked();
     }

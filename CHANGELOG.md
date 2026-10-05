@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.6
+
+- The Cross Stitch (十字绣) now counters on its own: after the defensive stance the hero flows
+  straight into the counter even when not struck. Only while the Chaos crest is equipped; every
+  other crest keeps the vanilla parry.
+- The Cross Stitch hit spark (`Parry Clash Effect`) no longer appears while the Chaos crest is
+  equipped; the clash animation, audio and camera shake are unchanged.
+- Added a pink-white highlight on Hornet for the Cross Stitch body-recoil step (Chaos crest only).
+- Removed the Delver's Drill (掘洞钻 / `Screw Attack`) from the random tool pool: its downward dive
+  does not work when thrown at random.
+
 ## 0.1.5
 
 - Fixed a random Shaman bind getting stuck on the edge of a top/bottom scene gate when falling into

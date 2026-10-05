@@ -59,14 +59,16 @@ like vanilla for every other crest.
 | Random tools | Every thrown tool becomes a random Red tool from the whole game — obtained or not. |
 | Random spells | Every cast silk skill becomes one of the six silk skills at random. |
 | Random taunt | Pressing the taunt button (R3 / V) plays a random one of the three vanilla flavours: standard, Beast crest battle-cry, or the Shakra Ring toss. The Beast flavour also switches in the Beast crest's unique taunt visual. |
+| Cross Stitch | While Chaos is equipped the Cross Stitch counters on its own (the stance flows straight into the counter even when not struck), its hit spark is removed, and a pink-white highlight is added for the body-recoil step. Other crests keep the vanilla parry. |
 | Tool budget | Tools share **20 uses per bench** (configurable) and refill for **free**. |
 | Custom HUD | A custom bind-orb frame, fixed "random" tool / spell HUD icons, and a custom crest spool on the save-selection screen. |
 
 ### Special tool handling
 
-- `Extractor` (**Needle Phial**), `Silk Snare` (**Snare Setter**) and `Rosary Cannon` are excluded
-  from the random tool pool — the first two do not work when thrown at random, and the Rosary
-  Cannon's usage differs and it misfires under rapid tool use.
+- `Extractor` (**Needle Phial**), `Silk Snare` (**Snare Setter**), `Rosary Cannon` and `Screw Attack`
+  (**Delver's Drill**) are excluded from the random tool pool — the first two do not work when thrown
+  at random, the Rosary Cannon's usage differs and it misfires under rapid tool use, and the
+  Delver's Drill dives downwards so it does not work when thrown at random.
 - `Lightning Rod` (**Voltvessels**) rolls randomly between its thrown **bola** and staked **spear**
   forms on every pick; the player's own form setting is restored afterwards.
 - `Rosary Cannon` is kept **fully charged**, so it always uses its charged form.
@@ -82,10 +84,10 @@ Config file: `BepInEx/config/io.github.lifelan.randomcrestmod.cfg`
 | `Tools/ToolUsesPerBench` | `20` | Number of uses every tool is refilled to when resting at a bench. |
 
 > Everything else is **hardcoded** (tuned during development): random attacks / binds / tools /
-> spells are always on and only apply to the Chaos crest; the excluded tools are fixed to Needle
-> Phial and Snare Setter; Voltvessels rolls both of its forms; Rosary Cannon is kept fully
-> charged; the custom HUD frame, save spool and random icons are always on, and the HUD frame
-> offset/scale are fixed too.
+> spells / taunt / Cross Stitch are always on and only apply to the Chaos crest; the excluded tools
+> are fixed to Needle Phial, Snare Setter, Rosary Cannon and Delver's Drill; Voltvessels rolls both
+> of its forms; Rosary Cannon is kept fully charged; the custom HUD frame, save spool and random
+> icons are always on, and the HUD frame offset/scale are fixed too.
 
 ---
 
