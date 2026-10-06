@@ -3,12 +3,27 @@
 > 这份是给后续（重启对话后）的自己和 AI 用的开发笔记，记录**现状、关键决定、坑和待办**。
 > 面向玩家的说明见仓库根目录 `README.md` / `README.en.md`。
 
-## 零、v0.1.7（最终功能版本，已发布）
+## 零、版本 & WIP 状态（每次开工先看这里）
 
-> v0.1.7 是最后一个功能版本；之后只做 bug 修复。
-> 发布内容见 `CHANGELOG.md`；`Directory.Build.props` 与 `thunderstore.toml` 已 bump 到 0.1.7，
-> `dotnet build -c Debug/Release` 均 **0 警告 0 错误**。推 `v0.1.7` tag 会触发
-> `.github/workflows/publish-thunderstore.yml` 发布 Thunderstore（需 `TCLI_AUTH_TOKEN` secret）。
+> **已发布**：v0.1.9（= v0.1.8 + 十字绣真格挡退丝 / 纹章贴图优化 / Glow + 技能弹窗剪影；tag `v0.1.9`，已发 Thunderstore）。
+> 更早：v0.1.8（普通档嘲讽也可给 0 念珠，未单独写 changelog）。
+> 本版三块内容（均已并入 `## 0.1.9` 更新日志）：
+> 1. 十字绣**真格挡退还本次灵丝** `ParrySilkRefund`（详见“五之四”）——真格挡不花丝，自动释放照常花；
+> 2. 纹章贴图优化 `crest_icon.png` / `crest_silhouette.png` / `crest_glow.png`（详见“六”）；
+> 3. 普通档嘲讽献祭念珠范围 **1~50 → 0~50**：现在有概率消耗碎片但不获得念珠。
+>
+> 本版发布文件（已提交）：新增 `ParrySilkRefund.cs`、`SkillGetMsgPatches.cs`、`Assets/crest_glow.png`；
+> 修改 `ParryClashTrigger.cs`（`NotifyAttacked` 只认一次）、`RandomCrestModPlugin.cs`（`EnableParrySilkRefund` + 注册）、
+> `Assets/crest_icon.png`、`Assets/crest_silhouette.png`、`CHANGELOG.md`、`Directory.Build.props`、`thunderstore.toml`。
+>
+> 版本号已 bump：`Directory.Build.props` 与 `thunderstore.toml` 均为 `0.1.9`。
+> 编译现状：`dotnet build -c Release` **0 警告 0 错误**；`dotnet tcli build` 产出 `dist/LIFELAN-RandomCrestMod-0.1.9.zip`。
+> 发布流程见“十一”。
+>
+> ⚠️ **部分实测项尚未进游戏确认**（格挡退丝数值、美术修复、电枢球标枪形态、嘲讽三形态），
+> 详见“九、待办”。
+
+> 以下 0.1~0.6 为 v0.1.7 的功能细节，保留作背景。
 
 ### 0.1 随机工具「连投 / 弹幕」
 
@@ -72,21 +87,21 @@
 
 ---
 
-## 一、当前状态（截至已发布的 v0.1.7）
+## 一、当前状态（截至 WIP 0.1.9）
 
 - 编译：`dotnet build -c Debug`，**0 警告 0 错误**。
 - 已安装：`<游戏>/BepInEx/plugins/lifelan-RandomCrestMod/RandomCrestMod.dll`（构建会自动复制）。
 - 仓库：https://github.com/LIFELAN/RandomCrestMod（默认分支 `master`）。
-- 已发布 v0.1.7（最后一个功能版本）。
+- **已发布 v0.1.9**（十字绣真格挡退丝 / 贴图优化 / Glow + 技能弹窗剪影）。
 
-最近提交（v0.1.4 新增随机嘲讽 / 电枢球双形态；详见 `CHANGELOG.md`）：
+最近提交：
 ```
-43e1add Let the Flea Charm stack with the Chaos silk discount
-7af9189 Correct the skid-bind trade-off note
-eb44157 Release v0.1.1
-90f0329 Drop redundant suffix from the mod's proper name
-dff0ccc Fix HUD frame stuck hidden after switching crests
-68c0e1e Add developer handover notes
+8bf08ea Release v0.1.8: standard taunt can roll 0 rosaries
+4655786 Release v0.1.7: tool barrage, pouch growth, taunt offering
+221dcbd Make the Chaos crest's Cross Stitch auto-counter; drop Delver's Drill
+5823200 Let a random Shaman bind cross scene gates
+0f7931b Randomize the R3 taunt and Voltvessels forms; drop Rosary Cannon
+0e28900 Exclude the Chaos crest from the crest upgrader's slot count
 ```
 
 ## 二、模组基本定义
@@ -197,10 +212,44 @@ dff0ccc Fix HUD frame stuck hidden after switching crests
   `_FlashAmount`，所以必须显式清 0，否则会残留。
 - 配置项仍**只有** `Tools/ToolUsesPerBench`，高光数值等全部写死。
 
+## 五之四、十字绣真格挡退还灵丝（`ParrySilkRefund`，0.1.9 WIP）
+
+- 目标：装备纷乱时，十字绣**真实格挡成功**（立场被击中，走 `PARRIED`）就退还**本次施放实际花掉的灵丝**；
+  自动释放（立场自然结束）不退还，维持两套释放的价值差。
+- 实现：
+  - `ParrySilkRefundPatch`：`HeroController.TakeSilk(int)` 的 **postfix**，仅当 `hero.silkSpecialFSM` 处于
+    `Parry Start` 且 `RandomToolService.RandomSpellsActive` 时，把 `amount` 记进 `_pending`。
+    该状态里 FSM 先 `GetPlayerDataVariable("SilkSkillCost")` 再 `TakeSilk`，所以拿到的正是折扣后的 3 / 2，
+    和实际扣费完全一致（不依赖结算时刻再读一次的假设）。
+  - `ParrySilkRefund.OnParried()`：在 `ParryClashTrigger.NotifyAttacked()` 里调用；`_pending>0` 且
+    `RandomSpellsActive` 时 `HeroController.instance.AddSilk(_pending, heroEffect:false)`，然后清零。
+  - 开关：`RandomCrestModPlugin.EnableParrySilkRefund = true`；plugin `Awake` 里
+    `_harmony.PatchAll(typeof(ParrySilkRefundPatch))`。
+- **关键坑 / 设计点（别踩）**：
+  1. `NotifyAttacked` 会被 **PARRIED 的 `SendEvent` prefix** 和 **`CheckParry`/`TakeDamage` 的 postfix 兜底**
+     各调一次 → 已在 `NotifyAttacked` 用 `if (Attacked) return;` 保证**只退一次**；`OnParried` 又靠
+     `_pending` 清零二次兜底。
+  2. **绝不要在 `ParryClashTrigger.Reset()` 里清 `_pending`**：`ParryAutoCounterService.Tick()` 与 FSM 同在
+     `Update`，同帧顺序不保证；若 Tick 在 FSM 进入 `Parry Start` 之后才跑，会把刚记录的值清掉。现在用
+     “下次 `Capture` 覆盖 + `OnParried` 消费”的语义，最稳。
+  3. `OnParried` 里**再 gate 一次 `RandomSpellsActive`**：自动释放会残留 `_pending`，防止残留值在别的纹章
+     真格挡时被误消费。
+  4. `heroEffect: false`。原版涨丝（`HeroController.SilkGain`）也是 false；`heroEffect:true` 走的是
+     `SpriteFlash.flashFocusHeal()`（大黄蜂本体白闪），而格挡时她正在 `Parry Clash` 动画里，看不清，
+     还容易和受击/高光混淆。**主反馈是丝轴自动补丝动画**（`AddSilk` 内部必调 `silkSpool.RefreshSilk`）。
+  5. 曾试过反射 `SilkChunk.regeneratedSound`（= `ui_silk_chunk_regenerated_option_2d`）播音效，**用户实测后
+     要求去掉**，现在是纯丝轴版。不要再默认加音效。
+  6. `AddSilk` 自身会 clamp 到 `CurrentSilkMax`、刷新 HUD、重置丝线回复，不需要额外保护。
+- 兼容性：只影响「装备纷乱 + 随机法术启用」；其它纹章的十字绣完全原版。
+- 桌面参考音（可删，代码不依赖）：`C:\Users\fuenlai\Desktop\Silksong_SilkSounds\`（11 个候选，含
+  `ui_silk_chunk_regenerated_option_2d` / `ui_spool_shard_fill_up` / `hornet_bind_ready` 等）。
+- 实测重点：①真格挡退 3、带蚤母卵退 2；②自动释放不退；③满丝附近不溢出；④连续多次格挡每次都能退；
+  ⑤换成别的纹章后十字绣完全原版。
+
 ## 六、HUD / 存档界面美术
 
 - 资源（`Assets/`，内嵌 DLL）：
-  - `crest_icon.png` / `crest_silhouette.png` — 纹章本体图标/剪影；
+  - `crest_icon.png` / `crest_silhouette.png` / `crest_glow.png` — 纹章本体图标 / 剪影 / 装备爆光（发光剪影）；
   - `crest_hud_frame.png` — 左上角缚丝丝轴外框（用户绘制，后期 gamma≈1.35 提亮），**ppu 420**；
   - `crest_save_spool.png` — 存档选择界面 spool（226×173）；
   - `crest_random_tool.png` — HUD 工具固定图标（红色，"兵械库"成就图标再上色 + 圆形柔边遮罩），**ppu 390**；
@@ -213,6 +262,14 @@ dff0ccc Fix HUD frame stuck hidden after switching crests
   - `Reset()` 会先 `Restore()` 再丢引用（否则活下来的 HUD 会一直保持关闭），并销毁旧的叠加对象/网格，避免残留 ghost；
   - 首次获取时用 `_gameFrameRevealed` 等游戏先把外框显示一次（`Appear`）再接管，这样纷乱外框和其它 HUD 一样「一点点加载」，而不是进档瞬间就蹦出来。
   - 曾用"直接改游戏 `sharedMesh/sharedMaterial`"方案，会破坏其他纹章外框（已弃用，不要回退）。
+- 纹章三张美术对应游戏预制体 `Template Crest` 的三个渲染器，**缩放不同**，做图时必须按同一物理尺寸换算：
+  - `Crest Sprite`（`crestSprite`，缩放 ×1）— 本体图标；
+  - `Crest Silhouette`（`crestSilhouette`，缩放 ×2）— 切换高亮时的剪影（`InventoryToolCrest.TransitionDisplayState` 在剪影↔图标之间交叉淡入淡出）。所以剪影图元像素≈图标的一半；
+  - `Crest Submit Effects/Crest Glow`（`crestGlow`，缩放 ×2.85）— 选中/装备 Burst 的白色爆光。Core 约等于剪影物理尺寸、外圈光晕到约 1.3×。**没有这张图时，克隆自猎手的纷乱会保留猎手的 Glow**，切换/确认纹章时会闪出猎手形状的白色发光剪影。
+  - 当前 `crest_silhouette.png` 是**手工描边**后洞填充的（描边原稿在桌面 `纷乱_图标描边.png`）：外轮廓内填实、中心圆与犄角根部小圆环保持镂空、不做形态学处理以保留尖角。
+  - 当前 `crest_glow.png` 由 `crest_silhouette.png` 生成（core 缩到 193×195、放进 255×261 画布、高斯模糊半径 15）——想换形状就重跑同款流程。
+- 内嵌贴图统一用 `SpriteMeshType.FullRect`（`LoadEmbeddedSprite`）：**Tight 网格会裁掉 Glow 这类软边 alpha**，必须保持 FullRect。
+- 技能获取弹窗（`SkillGetMsg`，预制体 `Silk_Skill_Get_Prompt`）只在 `Setup` 里写 `Crest`/`Crest_Glow`，其 `Skill Group/Crest/Pivot/Crest_Silhouette` 预制体里烘焙的是猎手剪影且**脚本从不更新** → 获得法术时会看到猎手剪影叠在纷乱图标上。`SkillGetMsgPatches.SkillGetMsgCrestSilhouettePatch` 在装备纷乱时把它换成 `crest.CrestSilhouette`；其它纹章不碰。
 - 随机图标：`RandomIconPatches.ToolHudIconSpritePatch`（换 sprite）+ `RadialHudIconColourPatch`（强制白 tint）。
 - 存档 spool：`SaveProfileCrestPatch` 改 `SaveProfileHealthBar.ShowHealth`（我们的 id 解析不了它的私有枚举）。
 
@@ -250,6 +307,10 @@ dff0ccc Fix HUD frame stuck hidden after switching crests
 - [x] 野兽/收割者疾风步/滑步缚丝正常获得 Rage/Reaper buff（同一根因：`TickDash` 提前 `Restore`）。
 - [x] 疾风步/空中疾风步/滑步里的普通、上、下劈砍也随机（`ApplyIfRequested` 改为静默换配置）。
 - [x] 纷乱法术费用降为 3 格（`PlayerDataSilkSkillCostPatch`）；满血带蚤母卵再叠到 2 格。
+- [x] 纷乱自带 Glow（`crest_glow.png`）+ 技能获取弹窗剪影补丁（`SkillGetMsgPatches`），切换/确认纹章与获得法术时不再闪猎手形状。
+- [x] 十字绣真格挡退还本次灵丝（`ParrySilkRefund`，`EnableParrySilkRefund`）；自动释放不退；去掉本体白闪与音效，只用丝轴补丝动画。
+- [ ] **实测格挡退丝（0.1.9 WIP）**：真格挡退 3 / 带蚤母卵 2；自动释放不退；满丝不溢出；连续格挡都生效；换纹章后原版。
+- [ ] **实测上述美术修复**：装备纷乱后 ①在铁匠铺切换/确认纹章时爆光是纷乱形状；②获得法术时弹窗里是纷乱剪影而不是猎手剪影。
 - [ ] **实测电枢球（Voltvessels）标枪形态**：随机掷到 `offState`（FSM 事件 `LIGHTNING ROD`）时能否
   正常出招、共享次数是否正常扣。若不能，考虑 `RollToggleState` 只保留流星锤。
 - [ ] **实测嘲讽三形态**：普通 / 野兽吼叫 / 投掷环是否都能正确触发；确认野兽形态的

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.9
+
+- Cross Stitch: a real parry (the defensive stance is struck) now refunds the silk the cast spent,
+  so a successful block costs nothing. The auto counter (the stance simply expires) still costs its
+  silk. Only while the Chaos crest is equipped; every other crest keeps the vanilla parry.
+- Optimized the crest textures: a cleaner crest icon and silhouette, plus the Chaos crest's own
+  equipment glow (`crest_glow.png`). Selecting / confirming the crest and the skill-get prompt now
+  use the crest's own glow and silhouette instead of flashing a Hunter-shaped one.
+- The standard taunt flavour can now roll 0 rosaries (the range is 0-50 instead of 1-50) when
+  offering shell shards. This means you can now spend shards and gain no rosaries at all.
+
 ## 0.1.7
 
 - Random tools can now throw a barrage: one press throws several times (one extra per Tool Pouch

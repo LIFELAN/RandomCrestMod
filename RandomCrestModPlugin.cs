@@ -50,6 +50,11 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
     /// animation / audio are unaffected.</summary>
     internal static readonly bool EnableParryClashEffect = false;
 
+    /// <summary>When true, a real Cross Stitch block refunds the silk that cast spent (3 normally,
+    /// or 2 with the Flea Charm at full health). Only active while the Chaos crest is equipped; the
+    /// auto counter (stance expired without a hit) still costs its silk.</summary>
+    internal static readonly bool EnableParrySilkRefund = true;
+
     /// <summary>Highlight strength applied to Hornet during the Cross Stitch retreat step, only
     /// while the Chaos crest is equipped (0 = off).</summary>
     internal static readonly float HeroHighlightAmount = 1f;
@@ -90,6 +95,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
         _harmony.PatchAll(typeof(ParryAutoCounterPatch));
         _harmony.PatchAll(typeof(ParryTriggerPatches));
         _harmony.PatchAll(typeof(ParryClashEffectPatch));
+        _harmony.PatchAll(typeof(ParrySilkRefundPatch));
         _harmony.PatchAll(typeof(HeroHighlightPatch));
         _harmony.PatchAll(typeof(ReaperPayoutPatch));
         _harmony.PatchAll(typeof(AnimationFallbackPatches));
@@ -108,6 +114,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
         _harmony.PatchAll(typeof(PlayerDataSilkSkillCostPatch));
         _harmony.PatchAll(typeof(ToolHudIconSpritePatch));
         _harmony.PatchAll(typeof(RadialHudIconColourPatch));
+        _harmony.PatchAll(typeof(SkillGetMsgCrestSilhouettePatch));
 
         // Optional custom crest art (embedded PNGs). Drop crest_icon.png / crest_silhouette.png /
         // crest_glow.png into Assets/ to use them.
@@ -169,11 +176,15 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
             texture.filterMode = FilterMode.Bilinear;
             texture.hideFlags = HideFlags.HideAndDontSave;
 
+            // FullRect keeps soft alpha edges (the crest glow's halo) instead of letting a tight
+            // mesh clip them; alignment is identical because the rect/pivot are unchanged.
             var sprite = Sprite.Create(
                 texture,
                 new Rect(0f, 0f, texture.width, texture.height),
                 new Vector2(0.5f, 0.5f),
-                pixelsPerUnit);
+                pixelsPerUnit,
+                0,
+                SpriteMeshType.FullRect);
             sprite.name = "RandomCrest " + fileName;
             sprite.hideFlags = HideFlags.HideAndDontSave;
             Instance.Logger.LogInfo("Loaded embedded crest sprite: " + fileName);

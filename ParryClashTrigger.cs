@@ -27,7 +27,15 @@ internal static class ParryClashTrigger
 
     internal static void NotifyAttacked()
     {
+        // Both the PARRIED event prefix and the CheckParry / TakeDamage fallback can report the same
+        // parry, so only the first report counts (and only it pays out the silk refund).
+        if (Attacked)
+        {
+            return;
+        }
+
         Attacked = true;
+        ParrySilkRefund.OnParried();
     }
 
     internal static void Reset()
