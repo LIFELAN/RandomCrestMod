@@ -3,7 +3,7 @@
 > 这份是给后续（重启对话后）的自己和 AI 用的开发笔记，记录**现状、关键决定、坑和待办**。
 > 面向玩家的说明见仓库根目录 `README.md` / `README.en.md`。
 
-## 零、版本 & WIP 状态（每次开工先看这里）
+## 零、版本 & 状态（每次开工先看这里）
 
 > **已发布**：v0.1.9（= v0.1.8 + 十字绣真格挡退丝 / 纹章贴图优化 / Glow + 技能弹窗剪影；tag `v0.1.9`，已发 Thunderstore）。
 > 更早：v0.1.8（普通档嘲讽也可给 0 念珠，未单独写 changelog）。
@@ -20,8 +20,7 @@
 > 编译现状：`dotnet build -c Release` **0 警告 0 错误**；`dotnet tcli build` 产出 `dist/LIFELAN-RandomCrestMod-0.1.9.zip`。
 > 发布流程见“十一”。
 >
-> ⚠️ **部分实测项尚未进游戏确认**（格挡退丝数值、美术修复、电枢球标枪形态、嘲讽三形态），
-> 详见“九、待办”。
+> ✅ **v0.1.9 已全部实测通过**（格挡退丝数值、美术修复、电枢球标枪形态、嘲讽三形态均已进游戏确认）。
 
 > 以下 0.1~0.6 为 v0.1.7 的功能细节，保留作背景。
 
@@ -82,12 +81,12 @@
 - [x] 版本号：`Directory.Build.props` 与 `thunderstore.toml` 已 bump 到 **0.1.7**。
 - [x] README.md / README.en.md 已补连投 / 免费投掷概率 / 工具袋成长 / 嘲讽献祭，配置默认改为 16。
 - [x] `CHANGELOG.md` 已加 0.1.7 条目，`dotnet build -c Release` + `dotnet tcli build` 出包。
-- [ ] 实测重点：连投是否稳定（不哑弹/不卡）、免费投掷概率体感、嘲讽三形态与声音动作一致。
-- [ ] 实测嘲讽献祭：地面完整嘲讽才结算、三种口味给珠数、空中/中途受击打断/不足 80 无作用。
+- [x] 实测重点：连投稳定（不哑弹/不卡）、免费投掷概率体感正常、嘲讽三形态与声音动作一致。
+- [x] 实测嘲讽献祭：地面完整嘲讽才结算、三种口味给珠数、空中/中途受击打断/不足 80 无作用。
 
 ---
 
-## 一、当前状态（截至 WIP 0.1.9）
+## 一、当前状态（截至已发布的 v0.1.9）
 
 - 编译：`dotnet build -c Debug`，**0 警告 0 错误**。
 - 已安装：`<游戏>/BepInEx/plugins/lifelan-RandomCrestMod/RandomCrestMod.dll`（构建会自动复制）。
@@ -96,12 +95,12 @@
 
 最近提交：
 ```
+4d8b254 Release v0.1.9: parry silk refund, crest texture polish, taunt 0-50
 8bf08ea Release v0.1.8: standard taunt can roll 0 rosaries
 4655786 Release v0.1.7: tool barrage, pouch growth, taunt offering
 221dcbd Make the Chaos crest's Cross Stitch auto-counter; drop Delver's Drill
 5823200 Let a random Shaman bind cross scene gates
 0f7931b Randomize the R3 taunt and Voltvessels forms; drop Rosary Cannon
-0e28900 Exclude the Chaos crest from the crest upgrader's slot count
 ```
 
 ## 二、模组基本定义
@@ -158,8 +157,8 @@
 - **特殊处理**：`Lightning Rod`(Voltvessels / 电枢球) 每次抽取时随机掷 `offState`(标枪，FSM 事件
   `LIGHTNING ROD`) / `onState`(流星锤，ThrowPrefab)，即 `RandomToolService.RollToggleState()`。该形态存在
   `PlayerData.LightningToolToggle`，所以 `RollToggleState` 会先快照玩家自己的值，`RestoreToggleState` 在
-  投掷后 0.5s（`Tick`）或卸下纷乱时还原，尽量不动存档（`OnSaveLoaded` 清空快照）。**标枪形态是否能
-  在随机替换下正常出招待实测**。
+  投掷后 0.5s（`Tick`）或卸下纷乱时还原，尽量不动存档（`OnSaveLoaded` 清空快照）。**标枪形态随机替换下
+  正常出招、共享次数正常扣，已实测通过（0.1.9）**。
 - 共享次数：`_usesLeft` 初始 20，所有 Red 工具同步，坐椅子/读档 `ResetUses`；`BeginFreeRefill/EndFreeRefill` 临时把 Red 工具的 `replenishResource=None` 让补充免费（其它纹章不受影响）。
 - 计数补丁：`GetToolStorageAmount`、`HeroController.CanThrowTool`、`HeroController.DidUseAttackTool`、`ToolItemManager.TryReplenishTools`。
 - 绑定/法术只在装备纷乱时替换（`RandomToolsActive/RandomSpellsActive`）。
@@ -212,7 +211,7 @@
   `_FlashAmount`，所以必须显式清 0，否则会残留。
 - 配置项仍**只有** `Tools/ToolUsesPerBench`，高光数值等全部写死。
 
-## 五之四、十字绣真格挡退还灵丝（`ParrySilkRefund`，0.1.9 WIP）
+## 五之四、十字绣真格挡退还灵丝（`ParrySilkRefund`，0.1.9）
 
 - 目标：装备纷乱时，十字绣**真实格挡成功**（立场被击中，走 `PARRIED`）就退还**本次施放实际花掉的灵丝**；
   自动释放（立场自然结束）不退还，维持两套释放的价值差。
@@ -243,8 +242,8 @@
 - 兼容性：只影响「装备纷乱 + 随机法术启用」；其它纹章的十字绣完全原版。
 - 桌面参考音（可删，代码不依赖）：`C:\Users\fuenlai\Desktop\Silksong_SilkSounds\`（11 个候选，含
   `ui_silk_chunk_regenerated_option_2d` / `ui_spool_shard_fill_up` / `hornet_bind_ready` 等）。
-- 实测重点：①真格挡退 3、带蚤母卵退 2；②自动释放不退；③满丝附近不溢出；④连续多次格挡每次都能退；
-  ⑤换成别的纹章后十字绣完全原版。
+- 实测重点（0.1.9 已全部实测通过）：①真格挡退 3、带蚤母卵退 2；②自动释放不退；③满丝附近不溢出；
+  ④连续多次格挡每次都能退；⑤换成别的纹章后十字绣完全原版。
 
 ## 六、HUD / 存档界面美术
 
@@ -292,12 +291,12 @@
    - 修法（本次）：
      1. `TickDash` 在 `_dashActive` 的分支里，准备 `Restore` 前也检查 `_active || _nailArtActive || _bindActive`，有其它操作持有 spoof 时绝不恢复（它同时修了野兽/收割者 buff 丢失的根因）；
      2. 安全网：在 `SurfaceWaterRegion.OnTriggerEnter2D` 的 Prefix 里，只要 Bind FSM 处于 `Shaman Air`/`Shaman Fall` 且正在缚丝，就临时把 `SpellCrest.IsEquipped` 报为 true（`ForceSpellCrestForWater`），让水正常接住英雄；进入水后 `EnteredWater` 会发全局 FSM CANCEL，同时现有 `cs.swimming` 的 `CancelBindFsm` 也会发 CANCEL。
-   - 仍待实测。
+   - 已实测通过（0.1.9）：落水不会穿出场景。
 5. **随机萨满缚丝穿越场景门卡在边缘**（本次修复）：`TransitionPoint.TryDoTransition` 判断缚丝英雄能否过门用的是 `HeroController.IsShamanCrestEquipped()`，它读的是 `PlayerData.CurrentCrestID == "Spell"`，**不是** `ToolCrest.IsEquipped`。装备纷乱时 `CurrentCrestID == "RandomCrest"`，所以即使随机掷到萨满、`IsEquipped` spoof 成功，这个检查仍为 false：门每帧把英雄推出触发器并清零竖直速度，而 Bind FSM 的 `Shaman Fall` 又每帧重新给向下速度 → 英雄卡在场景边缘动不了（普通/疾风步缚丝都一样）。
    - 修法：`RandomAttackService.SpoofingShaman`（`IsSpoofing && SpoofCrest == Gameplay.SpellCrest`）+ `RandomAttackService.IsShamanCrestEquippedForTransition`（原版逻辑 || spoof）；然后 `RandomAttackPatches` 用 **Transpiler** 把 `TransitionPoint.TryDoTransition` 里对 `IsShamanCrestEquipped` 的 `callvirt` 换成后者。
    - 为何用 Transpiler 而不是 Postfix：`IsShamanCrestEquipped` 是极小的非虚方法，Mono JIT 很可能把它内联进 `TryDoTransition`，那样 Harmony 对该方法的 detour 会被绕过；直接改调用点不受内联影响。
    - 只影响「缚丝中且随机到萨满」这一种情况；其它纹章缚丝仍按原版被挡（它们很快结束，不会卡死），未装备纷乱时行为完全不变。
-   - 编译通过（0 警告 0 错误），**仍待进游戏实测**：装备纷乱、从上层掉入下层场景门、随机掷到萨满时能正常切场景。
+   - 已实测通过（0.1.9）：装备纷乱、从上层掉入下层场景门、随机掷到萨满时能正常切场景。
 
 ## 九、待办 / 待确认
 
@@ -309,18 +308,17 @@
 - [x] 纷乱法术费用降为 3 格（`PlayerDataSilkSkillCostPatch`）；满血带蚤母卵再叠到 2 格。
 - [x] 纷乱自带 Glow（`crest_glow.png`）+ 技能获取弹窗剪影补丁（`SkillGetMsgPatches`），切换/确认纹章与获得法术时不再闪猎手形状。
 - [x] 十字绣真格挡退还本次灵丝（`ParrySilkRefund`，`EnableParrySilkRefund`）；自动释放不退；去掉本体白闪与音效，只用丝轴补丝动画。
-- [ ] **实测格挡退丝（0.1.9 WIP）**：真格挡退 3 / 带蚤母卵 2；自动释放不退；满丝不溢出；连续格挡都生效；换纹章后原版。
-- [ ] **实测上述美术修复**：装备纷乱后 ①在铁匠铺切换/确认纹章时爆光是纷乱形状；②获得法术时弹窗里是纷乱剪影而不是猎手剪影。
-- [ ] **实测电枢球（Voltvessels）标枪形态**：随机掷到 `offState`（FSM 事件 `LIGHTNING ROD`）时能否
-  正常出招、共享次数是否正常扣。若不能，考虑 `RollToggleState` 只保留流星锤。
-- [ ] **实测嘲讽三形态**：普通 / 野兽吼叫 / 投掷环是否都能正确触发；确认野兽形态的
-  独占 `TauntSlash` 动作能随声音一起出现（Warrior root 开关正确、`Taunt Slash` 变量被覆写），
-  并确认 Rings 的 `BoolAllTrue` 只依赖我们已覆盖的 bool。
+- [x] **实测格挡退丝（0.1.9）**：真格挡退 3 / 带蚤母卵 2；自动释放不退；满丝不溢出；连续格挡都生效；换纹章后原版。
+- [x] **实测上述美术修复**：装备纷乱后 ①在铁匠铺切换/确认纹章时爆光是纷乱形状；②获得法术时弹窗里是纷乱剪影而不是猎手剪影。
+- [x] **实测电枢球（Voltvessels）标枪形态**：随机掷到 `offState`（FSM 事件 `LIGHTNING ROD`）时能正常
+  出招、共享次数正常扣（0.1.9 通过；`RollToggleState` 保留双形态）。
+- [x] **实测嘲讽三形态**：普通 / 野兽吼叫 / 投掷环都能正确触发；野兽形态独占 `TauntSlash` 动作随声音
+  一起出现（Warrior root 开关正确、`Taunt Slash` 变量被覆写），Rings 的 `BoolAllTrue` 只依赖我们已覆盖的 bool。
 - [ ] （可选）滑步缚丝时 Sprint FSM 的缓存冲刺劈砍对象不会随 bind 刷新；目前靠下一次冲刺劈砍重掷兜底，未发现可见问题。
 - [ ] （可选）SilkCurseMod 兼容：让 SilkCurseMod 在装备纷乱时让路。
 - [ ] （可选）随机结果临时日志，验证 7 纹章均匀分布。
 - [ ] （可选）把法术费用 / 其它写死参数做成配置项（目前按设计全写死）。
-- [x] Release 打包：本机可用 Git Credential Manager 里存的 `github.com` 凭据调 REST API 建 Release 并上传附件（不需额外 token），已发 v0.1.0 / v0.1.1。
+- [x] Release 打包：本机可用 Git Credential Manager 里存的 `github.com` 凭据调 REST API 建 Release 并上传附件（不需额外 token），已发至 v0.1.9。
 
 ## 十、环境 / 路径 / 分析资料
 
