@@ -3,12 +3,81 @@
 > 这份是给后续（重启对话后）的自己和 AI 用的开发笔记，记录**现状、关键决定、坑和待办**。
 > 面向玩家的说明见仓库根目录 `README.md` / `README.en.md`。
 
-## 一、当前状态（截至 v0.1.6）
+## 零、v0.1.7（最终功能版本，已发布）
+
+> v0.1.7 是最后一个功能版本；之后只做 bug 修复。
+> 发布内容见 `CHANGELOG.md`；`Directory.Build.props` 与 `thunderstore.toml` 已 bump 到 0.1.7，
+> `dotnet build -c Debug/Release` 均 **0 警告 0 错误**。推 `v0.1.7` tag 会触发
+> `.github/workflows/publish-thunderstore.yml` 发布 Thunderstore（需 `TCLI_AUTH_TOKEN` secret）。
+
+### 0.1 随机工具「连投 / 弹幕」
+
+- 新增 `ThrowToolBarragePatch`（patch `HeroController.ThrowTool`，在 `RandomCrestModPlugin` 注册），
+  配合 `RandomToolService.BeforeThrow / AfterThrow / NotifyToolConsumed`。
+- **复用游戏自己的 `queuedAutoThrowTool` 循环**（它已负责等投掷动画），每次链式投掷重新掷一个新工具，
+  不自己写计时循环。链上重掷用 `PickRedForUse(requireThrowPrefab: true)`，只从带 `ThrowPrefab` 的
+  `ThrowablePool` 里选，避免非投射工具打断链。
+- 单次按键额外投掷数 `ExtraThrowsPerPress = 工具袋等级 + (装备 Quick Sling 额外 +1)`。
+- `BeforeThrow` 抓取 `willThrowTool` 并复位 `_throwConsumed`；`NotifyToolConsumed` 在
+  `DidUseAttackTool` postfix 里标记"真的投出去了"；`AfterThrow` 负责武装/递减/结束链。
+- **只在真实生成的投掷**（`_throwConsumed && hero.cState.isToolThrowing`，即 ThrowPrefab 路径）才武装链；
+  FSM 事件类工具（如电枢球标枪）绝不武装。
+- `EndChain` 只在自己确实持有链时才清游戏的 `queuedAutoThrowTool` / `willThrowTool`，其它纹章/无链帧
+  完全不碰原版状态。`Tick` 会在死亡 / 危险重生 / 场景切换 / 预算耗尽时中止链。
+
+### 0.2 工具袋（Tool Pouch）成长
+
+- `UsesPerBench` 由固定值改为：`基础配置值 × (1 + 0.25 × PlayerData.ToolPouchUpgrades)`，四舍五入到整数
+  （基础配置默认从 **20 改为 16**；`RandomCrestModPlugin` 里的说明同步更新）。
+- 新增 `RollFreeThrow`：每级工具袋 **+8% 免费投掷概率，上限 40%**；命中免费投掷时把未扣的预算镜像回
+  所有工具（`ApplyUsesToAllRedTools`），不消耗共享次数。
+
+### 0.3 随机嘲讽调整
+
+- 三形态由均等（各 1/3）改为**加权**：普通 **80%**、野兽 **14%**、投掷环 **6%**。
+- `ApplyTauntHold` 改为返回 `bool`：配置被别的动作占用（如冲刺/滑步刚结束仍持有）时返回 false，
+  `RandomTauntService.Roll` 在这种情况**把野兽降级为普通**，修掉"冲刺后第一次嘲讽声音与动作对不上"。
+- 投掷环判定加固：`CheckIfToolEquipped` / `GetToolEquipInfo` / `IntTestToBool` 的覆盖条件由
+  `IsRings` 改为 `IsActive`，并**双向作答**（Rings 才报装备，非 Rings 时把真实装备的投掷环报成未装备），
+  避免玩家真的带了投掷环时把普通/野兽 roll 劫持成 RINGS 分支。
+
+### 0.4 随机攻击侧配合
+
+- `RandomAttackService.ApplyTauntHold`：若 `_dashActive` 但英雄已落地且不在疾风/滑步，先释放这个过期持有
+  再安装嘲讽 config（避免静默不一致）；拿不到就返回 false。
+
+### 0.5 嘲讽献祭（碎片换念珠）
+
+- 新增：装备纷乱时，**在地面**完成一次嘲讽，若 `PlayerData.ShellShards >= 80`，结束时消耗 80 碎片并按
+  **roll 到的原始口味**给念珠（`PlayerData.geo`）：普通随机 1~50、野兽 60、投掷环 80；碎片不足则纯表演、
+  不消耗。货币走 `CurrencyManager.TakeShards` / `AddGeo`，HUD 计数器动画 + roll 音效（即“提醒音效”）。
+- 关键实现点：
+  - `_payoutFlavour` 单独保存 **roll 的原始结果**（不随野兽→普通的视觉回退而变），所以给珠概率仍是 80/14/6。
+  - **必须完整播完**：`RandomTauntPatches` 新增 `Tk2dWatchAnimationEvents.OnEnter` postfix，仅当 FSM 进入
+    `Taunt End Wait` 时调 `NotifyTauntCompleted()`。三种口味的嘲讽动作结束后都会进这个状态；空中嘲讽或
+    被打断（`Taunt Antic`/`Taunt` 中途 CANCEL）都不会进，所以不结算。`_tauntCompleted` 由此置真。
+  - `_paid` 保证每次 roll 只结算一次；`Roll()` 开头会先补结算上一轮（防止“回 Idle 同帧再次按下”时
+    `Tick` 漏采样）。结算点在 FSM 回到 `Idle`（或 5s 兜底超时）。
+  - 开关 `RandomCrestModPlugin.EnableTauntShardOffer`（写死 true）。不改 PlayerData 结构、不新增资源。
+- 实测重点：地面完整嘲讽才结算（空中/中途受击打断不给）、碎片不足不结算、三种口味给珠数、
+  野兽 roll 被降级时给珠仍按原始 roll。
+
+### 0.6 发布前待办（实测通过后）
+
+- [x] 版本号：`Directory.Build.props` 与 `thunderstore.toml` 已 bump 到 **0.1.7**。
+- [x] README.md / README.en.md 已补连投 / 免费投掷概率 / 工具袋成长 / 嘲讽献祭，配置默认改为 16。
+- [x] `CHANGELOG.md` 已加 0.1.7 条目，`dotnet build -c Release` + `dotnet tcli build` 出包。
+- [ ] 实测重点：连投是否稳定（不哑弹/不卡）、免费投掷概率体感、嘲讽三形态与声音动作一致。
+- [ ] 实测嘲讽献祭：地面完整嘲讽才结算、三种口味给珠数、空中/中途受击打断/不足 80 无作用。
+
+---
+
+## 一、当前状态（截至已发布的 v0.1.7）
 
 - 编译：`dotnet build -c Debug`，**0 警告 0 错误**。
 - 已安装：`<游戏>/BepInEx/plugins/lifelan-RandomCrestMod/RandomCrestMod.dll`（构建会自动复制）。
 - 仓库：https://github.com/LIFELAN/RandomCrestMod（默认分支 `master`）。
-- 工作区应保持干净；本文件是唯一可能未提交的新增项。
+- 已发布 v0.1.7（最后一个功能版本）。
 
 最近提交（v0.1.4 新增随机嘲讽 / 电枢球双形态；详见 `CHANGELOG.md`）：
 ```
@@ -39,7 +108,7 @@ dff0ccc Fix HUD frame stuck hidden after switching crests
   - 嘲讽：`RandomTauntService.Roll` / `Tick` 里的 `IsRandomCrestEquipped()`；
   - 随机图标：`RandomIconService.For` 走 `RandomToolsActive/RandomSpellsActive`；
   - HUD 外框：`HudFrameService.Tick` 检查 `IsRandomCrestEquipped()`。
-- 唯一配置项：`[Tools] ToolUsesPerBench = 20`（坐椅子补满次数，补充免费）。
+- 唯一配置项：`[Tools] ToolUsesPerBench = 16`（坐椅子补满的基准次数，每级工具袋 +25%，补充免费）。
 - **诅咒缚丝（cursed bind）功能已整体移除**，不要再加回来（见“八、历史坑”）。
 
 ## 四、随机攻击 / 缚丝（`RandomAttackService` / `RandomBindService`）

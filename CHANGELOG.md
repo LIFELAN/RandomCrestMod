@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.7
+
+- Random tools can now throw a barrage: one press throws several times (one extra per Tool Pouch
+  upgrade, plus one for Quick Sling) and every chained throw re-rolls a fresh random tool.
+- The Tool Pouch upgrade now matters on the Chaos crest: shared tool capacity grows by 25% per
+  upgrade, and each upgrade adds an 8% chance (capped at 40%) that a throw costs no use.
+- Shared tool capacity now starts at 16 uses per bench (was 20) before the Tool Pouch bonus.
+- The random taunt is now weighted: standard 80%, Beast 14%, Shakra Ring 6%. The ring check is also
+  hardened so a genuinely equipped ring can no longer hijack a standard / Beast roll.
+- Completing a taunt on the ground while the Chaos crest is equipped now spends 80 shell shards and
+  grants rosaries based on the rolled flavour: standard 1-50, Beast 60, Shakra Ring 80. With fewer
+  than 80 shards the taunt stays purely cosmetic.
+- Cross Stitch: a real parry keeps the vanilla hit spark again; only the automatic counter removes
+  it and uses the pink-white highlight.
+- Fixed a Shaman air bind sometimes restoring the crest config while still airborne and stranding
+  the hero.
+
 ## 0.1.6
 
 - The Cross Stitch (十字绣) now counters on its own: after the defensive stance the hero flows

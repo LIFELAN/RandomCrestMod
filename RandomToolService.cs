@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using GlobalSettings;
 using HarmonyLib;
 using TeamCherry.SharedUtils;
 using UnityEngine;
@@ -87,7 +88,47 @@ internal static class RandomToolService
 
     internal static bool RandomSpellsActive => RandomCrestModPlugin.EnableRandomSpells && GateOpen;
 
-    internal static int UsesPerBench => Mathf.Max(1, RandomCrestModPlugin.ToolUsesPerBench.Value);
+    /// <summary>Shared capacity gained per Tool Pouch upgrade (vanilla's 25% pouch increase).</summary>
+    private const float PouchCapacityIncrease = 0.25f;
+
+    /// <summary>Free-throw chance granted by each Tool Pouch upgrade.</summary>
+    private const float FreeThrowChancePerLevel = 0.08f;
+
+    /// <summary>Upper bound for the free-throw chance.</summary>
+    private const float FreeThrowChanceCap = 0.4f;
+
+    /// <summary>Tool Pouch upgrade count of the current save (0 when unavailable).</summary>
+    internal static int PouchLevel
+    {
+        get
+        {
+            try
+            {
+                return PlayerData.instance != null ? Mathf.Max(0, PlayerData.instance.ToolPouchUpgrades) : 0;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Shared capacity at a bench: the configured base plus 25% per Tool Pouch upgrade, rounded to
+    /// the nearest whole use. This keeps the Tool Pouch upgrade meaningful on the Chaos crest
+    /// instead of a flat value.
+    /// </summary>
+    internal static int UsesPerBench
+    {
+        get
+        {
+            var baseUses = Mathf.Max(1, RandomCrestModPlugin.ToolUsesPerBench.Value);
+            var scaled = baseUses * (1f + (PouchCapacityIncrease * PouchLevel));
+
+            // Round half up (Mathf.RoundToInt uses banker's rounding).
+            return Mathf.Max(1, Mathf.FloorToInt(scaled + 0.5f));
+        }
+    }
 
     /// <summary>
     /// Called every frame. Refills the shared counter the first time the mod crest becomes active
@@ -98,8 +139,21 @@ internal static class RandomToolService
         if (!RandomToolsActive)
         {
             _initialized = false;
+            EndChain(HeroController.instance);
             RestoreToggleState();
             return;
+        }
+
+        // Abort a running barrage if the hero can no longer continue (death / scene change /
+        // budget spent), so a stale queued auto-throw can never fire later on its own.
+        if (_chainArmed)
+        {
+            var hero = HeroController.instance;
+            var cs = hero != null ? hero.cState : null;
+            if (hero == null || cs == null || cs.dead || cs.hazardRespawning || cs.transitioning || _usesLeft <= 0)
+            {
+                EndChain(hero);
+            }
         }
 
         // A pick that never turned into a throw (e.g. the shared budget ran out) leaves the toggle
@@ -166,8 +220,37 @@ internal static class RandomToolService
     /// </summary>
     internal static ToolItem? PickRedForUse()
     {
+        return PickRedForUse(requireThrowPrefab: false);
+    }
+
+    /// <summary>
+    /// Picks a random Red tool. When <paramref name="requireThrowPrefab"/> is set only tools the
+    /// throw path can actually spawn are considered; used for chained barrage throws so a
+    /// non-projectile tool can never break the chain.
+    /// </summary>
+    internal static ToolItem? PickRedForUse(bool requireThrowPrefab)
+    {
         EnsurePools();
-        var pick = Pick(RedPool);
+
+        ToolItem? pick;
+        if (requireThrowPrefab)
+        {
+            ThrowablePool.Clear();
+            foreach (var tool in RedPool)
+            {
+                if (HasThrowPrefab(tool))
+                {
+                    ThrowablePool.Add(tool);
+                }
+            }
+
+            pick = Pick(ThrowablePool);
+        }
+        else
+        {
+            pick = Pick(RedPool);
+        }
+
         if (pick == null)
         {
             return null;
@@ -181,6 +264,18 @@ internal static class RandomToolService
         }
 
         return pick;
+    }
+
+    private static bool HasThrowPrefab(ToolItem tool)
+    {
+        try
+        {
+            return tool.Usage.ThrowPrefab != null;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     internal static ToolItem? PickSkill()
@@ -221,6 +316,195 @@ internal static class RandomToolService
         _spoofBinding = binding;
     }
 
+    // ------------------------------------------------------------------ multi-throw barrage
+
+    private static AccessTools.FieldRef<HeroController, ToolItem>? _willThrowRef;
+    private static AccessTools.FieldRef<HeroController, bool>? _queuedAutoThrowRef;
+
+    private static int _chainRemaining;
+    private static AttackToolBinding _chainBinding;
+    private static bool _chainArmed;
+    private static ToolItem? _candidate;
+    private static bool _throwConsumed;
+    private static readonly List<ToolItem> ThrowablePool = new();
+
+    internal static bool ChainActive => _chainArmed;
+
+    internal static ToolItem? SpoofTool => _spoofTool;
+
+    internal static int UsesLeft => _usesLeft;
+
+    /// <summary>
+    /// Number of extra throws a single press should produce. Tool Pouch upgrades each grant one
+    /// extra throw; Quick Sling contributes its own extra throw as well (absorbed here rather than
+    /// left to the game's own queue, so both work together).
+    /// </summary>
+    internal static int ExtraThrowsPerPress
+    {
+        get
+        {
+            var extra = PouchLevel;
+            if (QuickSlingEquipped)
+            {
+                extra++;
+            }
+
+            return Mathf.Max(0, extra);
+        }
+    }
+
+    private static bool QuickSlingEquipped
+    {
+        get
+        {
+            try
+            {
+                return Gameplay.QuickSlingTool != null && Gameplay.QuickSlingTool.Status.IsEquipped;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Called from the <c>ThrowTool</c> prefix, before the game resolves/nulls its private
+    /// <c>willThrowTool</c>. Captures the tool about to be thrown and resets the chain on a fresh
+    /// manual press.
+    /// </summary>
+    internal static void BeforeThrow(HeroController hero, bool isAutoThrow)
+    {
+        _throwConsumed = false;
+        _candidate = GetWillThrow(hero);
+    }
+
+    /// <summary>Called from the <c>DidUseAttackTool</c> postfix: a tool was actually thrown.</summary>
+    internal static void NotifyToolConsumed()
+    {
+        _throwConsumed = true;
+    }
+
+    /// <summary>
+    /// Called from the <c>ThrowTool</c> postfix. Drives the barrage by re-rolling the next tool and
+    /// re-arming the game's own <c>queuedAutoThrowTool</c> chain (which already gates on the throw
+    /// animation), so no custom timing loop is needed.
+    /// </summary>
+    internal static void AfterThrow(HeroController hero, bool isAutoThrow)
+    {
+        try
+        {
+            // Not our crest: never touch the game's throw state (that would cancel e.g. vanilla
+            // Quick Sling double throws on every other crest). A pending barrage is torn down by
+            // Tick when the gate closes.
+            if (!RandomToolsActive)
+            {
+                return;
+            }
+
+            // Only a real spawned throw (the ThrowPrefab path) sets isToolThrowing; FSM-event tools
+            // return before that and must never arm a chain.
+            if (!_throwConsumed || hero == null || !hero.cState.isToolThrowing)
+            {
+                if (isAutoThrow)
+                {
+                    EndChain(hero);
+                }
+
+                return;
+            }
+
+            if (_candidate == null || _candidate.Type != ToolItemType.Red)
+            {
+                EndChain(hero);
+                return;
+            }
+
+            if (!isAutoThrow)
+            {
+                _chainRemaining = ExtraThrowsPerPress;
+                _chainBinding = _spoofBinding;
+                _chainArmed = _chainRemaining > 0;
+                RandomCrestModPlugin.Log(
+                    $"[RandomTool] barrage armed: +{_chainRemaining} extra (pouch={PouchLevel}, quickSling={QuickSlingEquipped}).");
+            }
+            else
+            {
+                _chainRemaining--;
+            }
+
+            if (_chainRemaining > 0 && _usesLeft > 0)
+            {
+                var next = PickRedForUse(requireThrowPrefab: true);
+                if (next != null)
+                {
+                    SetWillThrow(hero, next);
+                    SetSpoof(next, _chainBinding);
+                    SetQueuedAutoThrow(hero, true);
+                    RandomCrestModPlugin.Log(
+                        $"[RandomTool] barrage -> tool='{next.name}' ({_chainRemaining} left).");
+                    return;
+                }
+            }
+
+            EndChain(hero);
+        }
+        catch (Exception e)
+        {
+            EndChain(hero);
+            RandomCrestModPlugin.LogError("[RandomTool] barrage failed: " + e.Message);
+        }
+    }
+
+    private static void EndChain(HeroController? hero)
+    {
+        // Only clear the game's fields when we actually own a live chain. Otherwise a frame with no
+        // barrage (including every frame on any other crest) must leave vanilla throw state alone.
+        var hadChain = _chainArmed || _chainRemaining > 0;
+        _chainArmed = false;
+        _chainRemaining = 0;
+
+        if (hero == null || !hadChain)
+        {
+            return;
+        }
+
+        try
+        {
+            SetQueuedAutoThrow(hero, false);
+            SetWillThrow(hero, null);
+        }
+        catch (Exception e)
+        {
+            RandomCrestModPlugin.LogError("[RandomTool] EndChain failed: " + e.Message);
+        }
+    }
+
+    private static ToolItem? GetWillThrow(HeroController hero)
+    {
+        _willThrowRef ??= AccessTools.FieldRefAccess<HeroController, ToolItem>("willThrowTool");
+        try
+        {
+            return _willThrowRef(hero);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void SetWillThrow(HeroController hero, ToolItem? tool)
+    {
+        _willThrowRef ??= AccessTools.FieldRefAccess<HeroController, ToolItem>("willThrowTool");
+        _willThrowRef(hero) = tool!;
+    }
+
+    private static void SetQueuedAutoThrow(HeroController hero, bool value)
+    {
+        _queuedAutoThrowRef ??= AccessTools.FieldRefAccess<HeroController, bool>("queuedAutoThrowTool");
+        _queuedAutoThrowRef(hero) = value;
+    }
+
     /// <summary>True when a random Red throw must be refused because the shared budget is spent.</summary>
     internal static bool IsOutOfUses(ToolItem? tool)
     {
@@ -251,6 +535,15 @@ internal static class RandomToolService
             return;
         }
 
+        // Tool Pouch free throw: the game already decremented the thrown tool, so instead of
+        // spending a use we mirror the untouched budget back onto every tool.
+        if (RollFreeThrow())
+        {
+            ApplyUsesToAllRedTools();
+            ToolItemManager.ReportAllBoundAttackToolsUpdated();
+            return;
+        }
+
         var after = usedTool.SavedData.AmountLeft;
         _usesLeft = after < _usesLeft ? after : _usesLeft - 1;
         if (_usesLeft < 0)
@@ -260,6 +553,18 @@ internal static class RandomToolService
 
         ApplyUsesToAllRedTools();
         ToolItemManager.ReportAllBoundAttackToolsUpdated();
+    }
+
+    private static bool RollFreeThrow()
+    {
+        var level = PouchLevel;
+        if (level <= 0)
+        {
+            return false;
+        }
+
+        var chance = Mathf.Min(FreeThrowChanceCap, level * FreeThrowChancePerLevel);
+        return UnityEngine.Random.value < chance;
     }
 
     /// <summary>
@@ -326,6 +631,7 @@ internal static class RandomToolService
         _togglePendingRestore = false;
         _poolsBuilt = false;
         _initialized = false;
+        EndChain(null);
         EnsurePools();
     }
 

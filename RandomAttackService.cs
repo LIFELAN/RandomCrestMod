@@ -237,6 +237,13 @@ internal static class RandomAttackService
             return;
         }
 
+        // Same reason for the Bind FSM: cState.isBinding can go false while the FSM is still in a
+        // Shaman air state, so wait for the FSM itself to reach Idle before restoring the config.
+        if (IsBindFsmBusy(hero))
+        {
+            return;
+        }
+
         Restore(hero);
     }
 
@@ -245,19 +252,16 @@ internal static class RandomAttackService
     /// lives under the Warrior crest root, which only this swap enables). Quiet swap so the Sprint
     /// FSM is not cancelled - a taunt can only start on the ground. Released by
     /// <see cref="ReleaseTauntHold"/> when the taunt FSM returns to Idle.
+    ///
+    /// <para>Returns false when the config could not be taken (another action still owns it). The
+    /// caller uses that to fall back to the standard taunt so the voice and action never disagree -
+    /// this is what used to break the first taunt right after a sprint / skid.</para>
     /// </summary>
-    internal static void ApplyTauntHold(ToolCrest? crest)
+    internal static bool ApplyTauntHold(ToolCrest? crest)
     {
         if (crest == null)
         {
-            return;
-        }
-
-        // Never clobber an attack / bind / dash that owns the config right now; a taunt cannot
-        // legitimately start while one of those is running anyway.
-        if (_active || _nailArtActive || _bindActive || _dashActive)
-        {
-            return;
+            return false;
         }
 
         try
@@ -265,13 +269,29 @@ internal static class RandomAttackService
             var hero = HeroController.instance;
             if (hero == null)
             {
-                return;
+                return false;
+            }
+
+            // A dash / sprint that already ended can still own the config during TickDash's grace
+            // period. If the hero is grounded and no longer sprinting / skidding, release that
+            // stale hold first (restoring then cannot cancel a live Sprint FSM) so the taunt can
+            // install the crest it rolled instead of silently mismatching.
+            if (_dashActive && !_active && !_nailArtActive && !_bindActive && !IsSprintOrSkid(hero))
+            {
+                Restore(hero);
+            }
+
+            // Never clobber an attack / bind / dash that owns the config right now; a taunt cannot
+            // legitimately start while one of those is running anyway.
+            if (_active || _nailArtActive || _bindActive || _dashActive)
+            {
+                return false;
             }
 
             var group = FindGroup(hero, crest);
             if (group == null)
             {
-                return;
+                return false;
             }
 
             ApplyGroup(hero, group, quiet: true);
@@ -282,10 +302,12 @@ internal static class RandomAttackService
             _activateTime = Time.time;
 
             RandomCrestModPlugin.Log($"Random taunt hold -> config='{(group.Config != null ? group.Config.name : "?")}'.");
+            return true;
         }
         catch (Exception e)
         {
             RandomCrestModPlugin.LogError("RandomAttackService.ApplyTauntHold failed: " + e);
+            return false;
         }
     }
 
@@ -411,6 +433,26 @@ internal static class RandomAttackService
         }
     }
 
+    /// <summary>
+    /// True while the game's Bind FSM is out of its resting "Idle" state (i.e. a bind is actually
+    /// running, including the Shaman air dive). Restoring the crest config fires
+    /// "HC CONFIG UPDATED", which can cancel the Bind FSM and strand the hero, so the restore is
+    /// postponed until this is false.
+    /// </summary>
+    private static bool IsBindFsmBusy(HeroController hero)
+    {
+        try
+        {
+            _bindFsm ??= FSMUtility.LocateFSM(hero.gameObject, "Bind");
+            var state = _bindFsm != null ? _bindFsm.ActiveStateName : null;
+            return !string.IsNullOrEmpty(state) && state != "Idle";
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     /// <summary>Restores the equipped crest's config once the attack animation is done.</summary>
     internal static void Tick()
     {
@@ -479,8 +521,14 @@ internal static class RandomAttackService
                 // Never swap the config back while sprinting / dashing / skidding; wait for the
                 // Sprint FSM to reach Idle (restoring fires "HC CONFIG UPDATED", which would
                 // globally cancel the still-running Sprint FSM and strand the hero).
+                //
+                // Also wait for the Bind FSM itself to finish: "End Bind" and "Cancel All" clear
+                // cState.isBinding before the FSM is actually done, so restoring on !isBinding alone
+                // can fire HC CONFIG UPDATED in the middle of a Shaman air bind and strand it.
                 var sprinting = IsSprintOrSkid(hero);
-                if (!sprinting && ((_bindWasBinding && !cs.isBinding && elapsed >= _minHold) || elapsed > 30f))
+                var bindFsmBusy = IsBindFsmBusy(hero);
+                if (elapsed > 30f
+                    || (!sprinting && !bindFsmBusy && _bindWasBinding && !cs.isBinding && elapsed >= _minHold))
                 {
                     Restore(hero);
                 }

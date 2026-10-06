@@ -11,9 +11,10 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 {
     internal static RandomCrestModPlugin Instance { get; private set; } = null!;
 
-    // ---- Configurable (the only entry left in the BepInEx config) ----
+    // ---- Configurable ----
 
-    /// <summary>Number of uses every tool is refilled to at a bench; refills are free.</summary>
+    /// <summary>Base number of uses the shared tools are refilled to at a bench. Each Tool Pouch
+    /// upgrade increases it by 25% (rounded). Refills are free.</summary>
     internal static ConfigEntry<int> ToolUsesPerBench = null!;
 
     // ---- Fixed values (previously configurable, now baked in) ----
@@ -34,6 +35,11 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 
     /// <summary>Randomises Hornet's taunt (R3 / V) into its standard / Beast / ring-toss flavours.</summary>
     internal static readonly bool EnableRandomTaunt = true;
+
+    /// <summary>When true, a completed taunt on the Chaos crest spends 80 shell shards and grants
+    /// rosaries based on the rolled flavour (standard 1-50, Beast 60, rings 80). Ignored when the
+    /// player cannot afford the shards.</summary>
+    internal static readonly bool EnableTauntShardOffer = true;
 
     /// <summary>Lets the Cross Stitch (十字绣 / Parry) skill counter even when the hero is not hit
     /// during the stance. Only active while the Chaos crest is equipped.</summary>
@@ -74,13 +80,15 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
         ToolUsesPerBench = Config.Bind(
             "Tools",
             "ToolUsesPerBench",
-            20,
-            "Number of uses every tool is refilled to when resting at a bench (refills are free).");
+            16,
+            "Base tool capacity shared by every tool when resting at a bench. Each Tool Pouch upgrade "
+            + "increases it by 25% (rounded to the nearest use). Refills are free.");
 
         _harmony = new Harmony(Info.Metadata.GUID);
         _harmony.PatchAll(typeof(RandomAttackPatches));
         _harmony.PatchAll(typeof(RandomTauntPatches));
         _harmony.PatchAll(typeof(ParryAutoCounterPatch));
+        _harmony.PatchAll(typeof(ParryTriggerPatches));
         _harmony.PatchAll(typeof(ParryClashEffectPatch));
         _harmony.PatchAll(typeof(HeroHighlightPatch));
         _harmony.PatchAll(typeof(ReaperPayoutPatch));
@@ -94,6 +102,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
         _harmony.PatchAll(typeof(GetToolStorageAmountPatch));
         _harmony.PatchAll(typeof(CanThrowToolPatch));
         _harmony.PatchAll(typeof(DidUseAttackToolPatch));
+        _harmony.PatchAll(typeof(ThrowToolBarragePatch));
         _harmony.PatchAll(typeof(TryReplenishToolsPatch));
         _harmony.PatchAll(typeof(RandomToolSaveLoadedPatch));
         _harmony.PatchAll(typeof(PlayerDataSilkSkillCostPatch));

@@ -20,7 +20,8 @@ internal static class HeroHighlightPatch
 /// <summary>
 /// Adds a highlight to Hornet's own sprite during the Cross Stitch (十字绣) "body recoil" step
 /// (<c>Parry Clash</c>) so the transition into the counter's glow is less abrupt. Active only while
-/// the Chaos crest is equipped.
+/// the Chaos crest is equipped, and only for the mod's auto counter (the stance expired on its own);
+/// a real parry keeps the vanilla <c>Parry Clash Effect</c> spark instead.
 ///
 /// <para>The hero's sprite material exposes the same <c>_FlashAmount</c> / <c>_FlashColor</c>
 /// shader properties the game's <see cref="SpriteFlash"/> uses. We set a base amount every
@@ -70,7 +71,10 @@ internal sealed class HeroHighlight : MonoBehaviour
             return;
         }
 
-        if (amount > 0f && CrestService.IsRandomCrestEquipped() && IsInRetreatStep())
+        if (amount > 0f
+            && CrestService.IsRandomCrestEquipped()
+            && !ParryClashTrigger.Attacked
+            && IsInRetreatStep())
         {
             _renderer.GetPropertyBlock(_block);
             if (_block.GetFloat(FlashAmountId) < amount)

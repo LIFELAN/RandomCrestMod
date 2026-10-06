@@ -154,11 +154,35 @@ internal static class DidUseAttackToolPatch
     [HarmonyPostfix]
     private static void Postfix(HeroController __instance)
     {
+        RandomToolService.NotifyToolConsumed();
+
         var used = WillThrow(__instance);
         if (used != null && used.Type == ToolItemType.Red && RandomToolService.IsRedPoolTool(used))
         {
             RandomToolService.ConsumeUse(used);
         }
+    }
+}
+
+/// <summary>
+/// Drives the multi-throw barrage. The chain is built on the game's own
+/// <c>queuedAutoThrowTool</c> loop (which already waits for the throw animation), but every
+/// chained throw re-rolls a fresh random tool instead of reusing the first one. Quick Sling's
+/// extra throw is absorbed into the count by <see cref="RandomToolService.ExtraThrowsPerPress"/>.
+/// </summary>
+[HarmonyPatch(typeof(HeroController), "ThrowTool")]
+internal static class ThrowToolBarragePatch
+{
+    [HarmonyPrefix]
+    private static void Prefix(HeroController __instance, bool isAutoThrow)
+    {
+        RandomToolService.BeforeThrow(__instance, isAutoThrow);
+    }
+
+    [HarmonyPostfix]
+    private static void Postfix(HeroController __instance, bool isAutoThrow)
+    {
+        RandomToolService.AfterThrow(__instance, isAutoThrow);
     }
 }
 

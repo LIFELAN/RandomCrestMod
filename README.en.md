@@ -57,10 +57,12 @@ like vanilla for every other crest.
 | Random attacks | Every attack uses a random crest's attack moveset. The direction you pressed (normal / up / down / wall / dash / charge slash) is preserved. |
 | Random bind | Every bind uses a random crest's bind effect. |
 | Random tools | Every thrown tool becomes a random Red tool from the whole game — obtained or not. |
+| Tool barrage | One press throws several times: **+1** throw per Tool Pouch upgrade, **+1** more with Quick Sling; every chained throw re-rolls a fresh random tool. |
 | Random spells | Every cast silk skill becomes one of the six silk skills at random. |
-| Random taunt | Pressing the taunt button (R3 / V) plays a random one of the three vanilla flavours: standard, Beast crest battle-cry, or the Shakra Ring toss. The Beast flavour also switches in the Beast crest's unique taunt visual. |
-| Cross Stitch | While Chaos is equipped the Cross Stitch counters on its own (the stance flows straight into the counter even when not struck), its hit spark is removed, and a pink-white highlight is added for the body-recoil step. Other crests keep the vanilla parry. |
-| Tool budget | Tools share **20 uses per bench** (configurable) and refill for **free**. |
+| Random taunt | Pressing the taunt button (R3 / V) plays a random one of the three vanilla flavours: standard **80%**, Beast crest battle-cry **14%**, or the Shakra Ring toss **6%**. The Beast flavour also switches in the Beast crest's unique taunt visual. |
+| Taunt offering | A taunt that plays fully on the ground while Chaos is equipped spends 80 shell shards and grants rosaries based on the rolled flavour: standard 1-50, Beast 60, Shakra Ring 80. With fewer than 80 shards the taunt stays purely cosmetic. |
+| Cross Stitch | While Chaos is equipped the Cross Stitch counters on its own (the stance flows straight into the counter even when not struck). Only the automatic counter removes the hit spark and adds the pink-white highlight; a real parry keeps the vanilla spark. Other crests keep the vanilla parry. |
+| Tool budget | Tools share a base **16 uses per bench** (configurable), **+25%** per Tool Pouch upgrade, and refill for **free**; each Tool Pouch upgrade also gives an **8%** chance (capped at 40%) that a throw costs no use. |
 | Custom HUD | A custom bind-orb frame, fixed "random" tool / spell HUD icons, and a custom crest spool on the save-selection screen. |
 
 ### Special tool handling
@@ -81,7 +83,7 @@ Config file: `BepInEx/config/io.github.lifelan.randomcrestmod.cfg`
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `Tools/ToolUsesPerBench` | `20` | Number of uses every tool is refilled to when resting at a bench. |
+| `Tools/ToolUsesPerBench` | `16` | Base number of uses every tool is refilled to at a bench (each Tool Pouch upgrade adds 25%). |
 
 > Everything else is **hardcoded** (tuned during development): random attacks / binds / tools /
 > spells / taunt / Cross Stitch are always on and only apply to the Chaos crest; the excluded tools

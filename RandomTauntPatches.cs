@@ -72,12 +72,16 @@ internal static class RandomTauntPatches
         }
     }
 
-    /// <summary>Ring toss: pretend the Shakra Ring is equipped in the "Silk Check" state.</summary>
+    /// <summary>
+    /// Ring toss: in the "Silk Check" state report the Shakra Ring as equipped only when the roll
+    /// was Rings. Answering both ways stops a genuinely equipped ring from hijacking a
+    /// Standard/Beast roll into the RINGS branch.
+    /// </summary>
     [HarmonyPatch(typeof(CheckIfToolEquipped), nameof(CheckIfToolEquipped.IsTrue), MethodType.Getter)]
     [HarmonyPostfix]
     private static void CheckIfToolEquipped_IsTrue_Postfix(CheckIfToolEquipped __instance, ref bool __result)
     {
-        if (!RandomTauntService.IsRings || !RandomTauntService.IsInState(__instance, RandomTauntService.SilkCheckState))
+        if (!RandomTauntService.IsActive || !RandomTauntService.IsInState(__instance, RandomTauntService.SilkCheckState))
         {
             return;
         }
@@ -85,7 +89,7 @@ internal static class RandomTauntPatches
         var tool = __instance.Tool != null ? __instance.Tool.Value as ToolItem : null;
         if (RandomTauntService.IsShakraRing(tool))
         {
-            __result = true;
+            __result = RandomTauntService.IsRings;
         }
     }
 
@@ -98,7 +102,7 @@ internal static class RandomTauntPatches
     [HarmonyPostfix]
     private static void GetToolEquipInfo_DoAction_Postfix(GetToolEquipInfo __instance)
     {
-        if (!RandomTauntService.IsRings || !RandomTauntService.IsInState(__instance, RandomTauntService.SilkCheckState))
+        if (!RandomTauntService.IsActive || !RandomTauntService.IsInState(__instance, RandomTauntService.SilkCheckState))
         {
             return;
         }
@@ -106,6 +110,22 @@ internal static class RandomTauntPatches
         var tool = __instance.Tool != null ? __instance.Tool.Value as ToolItem : null;
         if (!RandomTauntService.IsShakraRing(tool))
         {
+            return;
+        }
+
+        if (!RandomTauntService.IsRings)
+        {
+            // Non-Rings roll: hide a genuinely equipped ring so BoolAllTrue cannot pick RINGS.
+            if (__instance.StoreIsEquipped != null)
+            {
+                __instance.StoreIsEquipped.Value = false;
+            }
+
+            if (__instance.StoreAmountLeft != null)
+            {
+                __instance.StoreAmountLeft.Value = 0;
+            }
+
             return;
         }
 
@@ -138,24 +158,44 @@ internal static class RandomTauntPatches
     [HarmonyPostfix]
     private static void IntTestToBool_DoCompare_Postfix(IntTestToBool __instance)
     {
-        if (!RandomTauntService.IsRings || !RandomTauntService.IsInState(__instance, RandomTauntService.SilkCheckState))
+        if (!RandomTauntService.IsActive || !RandomTauntService.IsInState(__instance, RandomTauntService.SilkCheckState))
         {
             return;
         }
 
+        // "Has Two Rings" must follow the roll only, so a genuinely equipped ring cannot hijack a
+        // Standard/Beast roll into the RINGS branch.
+        var value = RandomTauntService.IsRings;
+
         if (__instance.equalBool != null)
         {
-            __instance.equalBool.Value = true;
+            __instance.equalBool.Value = value;
         }
 
         if (__instance.lessThanBool != null)
         {
-            __instance.lessThanBool.Value = true;
+            __instance.lessThanBool.Value = value;
         }
 
         if (__instance.greaterThanBool != null)
         {
-            __instance.greaterThanBool.Value = true;
+            __instance.greaterThanBool.Value = value;
+        }
+    }
+
+    /// <summary>
+    /// The taunt counts as fully played only once the FSM reaches "Taunt End Wait", the state every
+    /// flavour lands in after its action. Its <c>Tk2dWatchAnimationEvents</c> runs there, so this
+    /// hook is a reliable "taunt finished" signal - unlike sampling the state per frame - and it is
+    /// never reached by an airborne or interrupted taunt.
+    /// </summary>
+    [HarmonyPatch(typeof(Tk2dWatchAnimationEvents), nameof(Tk2dWatchAnimationEvents.OnEnter))]
+    [HarmonyPostfix]
+    private static void Tk2dWatchAnimationEvents_OnEnter_Postfix(Tk2dWatchAnimationEvents __instance)
+    {
+        if (RandomTauntService.IsInState(__instance, RandomTauntService.TauntEndState))
+        {
+            RandomTauntService.NotifyTauntCompleted();
         }
     }
 

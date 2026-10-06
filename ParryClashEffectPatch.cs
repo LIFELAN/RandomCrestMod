@@ -4,13 +4,13 @@ using HutongGames.PlayMaker.Actions;
 namespace RandomCrestMod;
 
 /// <summary>
-/// Suppresses the <c>Parry Clash Effect</c> hit spark on Hornet's needle, active only while the
-/// Chaos crest is equipped.
+/// Splits the <c>Parry Clash Effect</c> hit spark by trigger, active only while the Chaos crest is
+/// equipped.
 ///
 /// <para>The <c>Parry Clash</c> state of the hero's <c>Silk Specials</c> FSM toggles a child object
-/// called <c>Parry Clash Effect</c>. We intercept that activation so the spark never appears; the
-/// clash animation, audio, camera shake and every other part of the Cross Stitch (十字绣) remain
-/// untouched.</para>
+/// called <c>Parry Clash Effect</c>. A <b>real</b> parry (the stance was struck) keeps the vanilla
+/// spark; only the mod's auto counter (the stance simply expired) suppresses it, because that path
+/// uses <see cref="HeroHighlight"/> instead.</para>
 ///
 /// <para>Intercepting the activation itself is robust against PlayMaker rebuilding its actions
 /// (which would drop an <c>Enabled = false</c> edit), and only <i>activations</i> are skipped so the
@@ -25,7 +25,11 @@ internal static class ParryClashEffectPatch
     [HarmonyPrefix]
     private static bool ActivateGameObject_OnEnter_Prefix(ActivateGameObject __instance)
     {
-        if (RandomCrestModPlugin.EnableParryClashEffect || !CrestService.IsRandomCrestEquipped())
+        // A real parry keeps the vanilla spark; only our automatic counter replaces it with the
+        // highlight. EnableParryClashEffect is a hard override that keeps it in both cases.
+        if (RandomCrestModPlugin.EnableParryClashEffect
+            || ParryClashTrigger.Attacked
+            || !CrestService.IsRandomCrestEquipped())
         {
             return true;
         }

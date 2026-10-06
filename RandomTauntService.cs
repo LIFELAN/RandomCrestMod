@@ -44,10 +44,40 @@ internal static class RandomTauntService
 
     private const string IdleState = "Idle";
 
+    /// <summary>State whose <c>Tk2dWatchAnimationEvents</c> lands when the taunt action fully ends.</summary>
+    internal const string TauntEndState = "Taunt End Wait";
+
     /// <summary>Safety net: release the held crest even if the FSM never returns to Idle.</summary>
     private const float StaleTimeout = 5f;
 
+    /// <summary>Shell Shards (碎片) spent by a successful taunt offering.</summary>
+    private const int ShardCost = 80;
+
+    /// <summary>Rosaries (念珠) granted by each flavour. Standard rolls 1..StandardRosaryMax.</summary>
+    private const int StandardRosaryMax = 50;
+
+    private const int BeastRosary = 60;
+
+    private const int RingsRosary = 80;
+
     private static TauntFlavour _flavour = TauntFlavour.None;
+
+    /// <summary>
+    /// The flavour the weighted roll actually produced, kept separate from the flavour used for the
+    /// visuals. The payout follows the rolled odds even when the action had to fall back (e.g. a
+    /// Beast roll downgraded to Standard because the config was busy).
+    /// </summary>
+    private static TauntFlavour _payoutFlavour = TauntFlavour.None;
+
+    /// <summary>
+    /// True once the FSM has entered <see cref="TauntEndState"/>, i.e. the taunt played all the way
+    /// to its end. An air taunt or a taunt cancelled mid-way never does, so only a full taunt pays.
+    /// </summary>
+    private static bool _tauntCompleted;
+
+    /// <summary>Guards the payout so it can never run twice for the same roll.</summary>
+    private static bool _paid;
+
     private static float _rollTime;
     private static PlayMakerFSM? _silkspecialsFsm;
 
@@ -78,6 +108,11 @@ internal static class RandomTauntService
     {
         try
         {
+            // A new roll can only start from the FSM's Idle state, so any previous taunt has
+            // already finished. Settle it here in case the re-press landed on the very frame the
+            // FSM returned to Idle, before Tick had a chance to see it.
+            TryPayout();
+
             if (!RandomCrestModPlugin.EnableRandomTaunt)
             {
                 Clear();
@@ -90,15 +125,29 @@ internal static class RandomTauntService
                 return;
             }
 
-            // Three equally likely flavours: 1 = Standard, 2 = Beast, 3 = Rings.
-            _flavour = (TauntFlavour)(1 + UnityEngine.Random.Range(0, 3));
+            // Weighted flavours: Standard 80%, Beast 14%, Rings 6%.
+            var roll = UnityEngine.Random.value;
+            var flavour = roll < 0.80f
+                ? TauntFlavour.Standard
+                : roll < 0.94f
+                    ? TauntFlavour.Beast
+                    : TauntFlavour.Rings;
+            _flavour = flavour;
+            _payoutFlavour = flavour;
             _rollTime = Time.time;
+            _tauntCompleted = false;
+            _paid = false;
 
             // The Beast taunt's unique visual lives under the Warrior crest root, so install that
-            // crest for the taunt's duration; Standard/Rings use the real crest.
+            // crest for the taunt's duration. If the config cannot be taken right now (e.g. a
+            // sprint / dash still holds it) fall back to Standard so the voice and action always
+            // match instead of leaving a Beast voice over a standard slash.
             if (_flavour == TauntFlavour.Beast)
             {
-                RandomAttackService.ApplyTauntHold(BeastCrest);
+                if (!RandomAttackService.ApplyTauntHold(BeastCrest))
+                {
+                    _flavour = TauntFlavour.Standard;
+                }
             }
             else
             {
@@ -117,6 +166,8 @@ internal static class RandomTauntService
     internal static void Clear()
     {
         _flavour = TauntFlavour.None;
+        _payoutFlavour = TauntFlavour.None;
+        _tauntCompleted = false;
         RandomAttackService.ReleaseTauntHold();
     }
 
@@ -169,18 +220,87 @@ internal static class RandomTauntService
             return;
         }
 
-        // The taunt is over once the FSM is back in Idle. The small delay covers the frame the roll
-        // happens on, before the FSM has left Idle.
         var fsm = GetFsm();
-        if (fsm != null && fsm.ActiveStateName == IdleState && Time.time - _rollTime > 0.2f)
+        if (fsm != null
+            && fsm.ActiveStateName == IdleState
+            && Time.time - _rollTime > 0.2f)
         {
-            Clear();
+            // The FSM has fully unwound the taunt; NotifyTauntCompleted already recorded whether
+            // the action reached its end. Drop the roll and pay out only if it did.
+            CompleteTaunt();
             return;
         }
 
         if (Time.time - _rollTime > StaleTimeout)
         {
-            Clear();
+            CompleteTaunt();
+        }
+    }
+
+    /// <summary>Pays out what the roll promised (if anything), then drops the roll.</summary>
+    private static void CompleteTaunt()
+    {
+        TryPayout();
+        Clear();
+    }
+
+    /// <summary>
+    /// Converts shell shards into rosaries at the end of a real taunt. Runs at most once per roll
+    /// and only when the player can afford it; otherwise the taunt stays purely cosmetic. Both
+    /// changes go through <see cref="CurrencyManager"/> so the HUD counters animate and the roll
+    /// sound plays as the reminder.
+    /// </summary>
+    private static void TryPayout()
+    {
+        if (_paid)
+        {
+            return;
+        }
+
+        _paid = true;
+
+        if (!_tauntCompleted
+            || !RandomCrestModPlugin.EnableTauntShardOffer
+            || _payoutFlavour == TauntFlavour.None
+            || !PlayerData.HasInstance)
+        {
+            return;
+        }
+
+        if (PlayerData.instance.ShellShards < ShardCost)
+        {
+            return;
+        }
+
+        var rosaries = _payoutFlavour switch
+        {
+            TauntFlavour.Beast => BeastRosary,
+            TauntFlavour.Rings => RingsRosary,
+            _ => UnityEngine.Random.Range(1, StandardRosaryMax + 1),
+        };
+
+        try
+        {
+            CurrencyManager.TakeShards(ShardCost);
+            CurrencyManager.AddGeo(rosaries);
+            RandomCrestModPlugin.Log(
+                $"[RandomTaunt] {ShardCost} shards -> +{rosaries} rosaries ({_payoutFlavour}).");
+        }
+        catch (Exception e)
+        {
+            RandomCrestModPlugin.LogError("[RandomTaunt] shard/rosary payout failed: " + e.Message);
+        }
+    }
+
+    /// <summary>
+    /// Called by the <see cref="TauntEndState"/> hook once the taunt animation has run to its end.
+    /// Only a real, uninterrupted ground taunt reaches that state, so this unlocks the payout.
+    /// </summary>
+    internal static void NotifyTauntCompleted()
+    {
+        if (IsActive)
+        {
+            _tauntCompleted = true;
         }
     }
 

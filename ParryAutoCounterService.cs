@@ -18,10 +18,13 @@ namespace RandomCrestMod;
 internal static class ParryAutoCounterService
 {
     private const string FsmName = "Silk Specials";
+    private const string StanceStartState = "Parry Start";
     private const string StanceState = "Parry Stance";
     private const string ClashState = "Parry Clash";
     private const string RecoverState = "Parry Recover";
     private const string FinishedEvent = "FINISHED";
+
+    private static string? _lastState;
 
     /// <summary>Per-frame check: retargets the transition while the Chaos crest is equipped and
     /// restores it otherwise.</summary>
@@ -43,6 +46,21 @@ internal static class ParryAutoCounterService
         if (fsm == null || fsm.Name != FsmName)
         {
             return;
+        }
+
+        // Remember how the running Parry Clash was entered (real hit vs. our auto counter). A fresh
+        // stance must not inherit the previous clash's flag.
+        var state = playMaker!.ActiveStateName;
+        if (state != _lastState)
+        {
+            // Clear the flag when a new stance begins and again when a clash ends, so it can never
+            // leak from one Cross Stitch into the next regardless of which entry/exit path is used.
+            if (state == StanceStartState || _lastState == ClashState)
+            {
+                ParryClashTrigger.Reset();
+            }
+
+            _lastState = state;
         }
 
         SetRedirect(fsm, CrestService.IsRandomCrestEquipped());
