@@ -37,7 +37,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
     internal static readonly bool EnableRandomTaunt = true;
 
     /// <summary>When true, a completed taunt on the Chaos crest spends 80 shell shards and grants
-    /// rosaries based on the rolled flavour (standard 1-50, Beast 60, rings 80). Ignored when the
+    /// rosaries based on the rolled flavour (standard 0-50, Beast 60, rings 80). Ignored when the
     /// player cannot afford the shards.</summary>
     internal static readonly bool EnableTauntShardOffer = true;
 

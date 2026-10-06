@@ -53,7 +53,7 @@ internal static class RandomTauntService
     /// <summary>Shell Shards (碎片) spent by a successful taunt offering.</summary>
     private const int ShardCost = 80;
 
-    /// <summary>Rosaries (念珠) granted by each flavour. Standard rolls 1..StandardRosaryMax.</summary>
+    /// <summary>Rosaries (念珠) granted by each flavour. Standard rolls 0..StandardRosaryMax.</summary>
     private const int StandardRosaryMax = 50;
 
     private const int BeastRosary = 60;
@@ -276,7 +276,7 @@ internal static class RandomTauntService
         {
             TauntFlavour.Beast => BeastRosary,
             TauntFlavour.Rings => RingsRosary,
-            _ => UnityEngine.Random.Range(1, StandardRosaryMax + 1),
+            _ => UnityEngine.Random.Range(0, StandardRosaryMax + 1),
         };
 
         try
