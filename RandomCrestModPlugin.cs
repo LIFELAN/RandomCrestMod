@@ -79,7 +79,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 
     internal static readonly float HudFrameOffsetY = 0.16f;
 
-    internal static readonly float HudFrameScale = 0.945f;
+    internal static readonly float HudFrameScale = 0.9125f;
 
     private Harmony _harmony = null!;
 
@@ -113,6 +113,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
         _harmony.PatchAll(typeof(GetBoundAttackToolPatch));
         _harmony.PatchAll(typeof(GetAttackToolBindingPatch));
         _harmony.PatchAll(typeof(GetToolStorageAmountPatch));
+        _harmony.PatchAll(typeof(IsToolEquippedPatch));
         _harmony.PatchAll(typeof(CanThrowToolPatch));
         _harmony.PatchAll(typeof(DidUseAttackToolPatch));
         _harmony.PatchAll(typeof(ThrowToolBarragePatch));

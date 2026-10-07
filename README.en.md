@@ -68,16 +68,15 @@ like vanilla for every other crest.
 
 ### Special tool handling
 
-- `Extractor` (**Needle Phial / 储液针管**), `Silk Snare` (**Snare Setter / 陷阱设置器**),
-  `Rosary Cannon` and `Screw Attack` (**Delver's Drill**) are excluded from the random tool pool —
-  the first two do not work when thrown at random, the Rosary Cannon's usage differs and it misfires
-  under rapid tool use, and the Delver's Drill dives downwards so it does not work when thrown at random.
-  The **Extractor** and the **Snare Setter** additionally keep their vanilla behaviour when equipped
-  (they are not swapped for a random tool), so their quests / special usage still work and their own
-  HUD icon is shown.
+- **Every red tool is always in the random pool** — there is no exclusion list and no toggle.
+  The **Needle Phial** (`Extractor`) keeps its vanilla behaviour while equipped (it is not swapped
+  for a random tool) so its quest can be completed and its own HUD icon is shown; the **Snare
+  Setter** (`Silk Snare`) now follows the random rule like every other red tool (it is swapped for a
+  random tool while equipped and shows the random HUD icon).
 - `Lightning Rod` (**Voltvessels**) rolls randomly between its thrown **bola** and staked **spear**
   forms on every pick; the player's own form setting is restored afterwards.
-- `Rosary Cannon` is kept **fully charged**, so it always uses its charged form.
+- `Rosary Cannon` is kept **fully charged** and counts as equipped while its custom-usage loop runs,
+  so holding the button fires continuously like the vanilla cannon.
 
 ---
 
@@ -91,10 +90,10 @@ Config file: `BepInEx/config/io.github.lifelan.randomcrestmod.cfg`
 
 > Everything else is **hardcoded** (tuned during development): random attacks / binds / tools /
 > spells / taunt / Cross Stitch / spell silk refund / Plasmium Phial boost are always on and only
-> apply to the Chaos crest; the excluded tools are fixed to Extractor, Snare Setter, Rosary Cannon
-> and Delver's Drill; Voltvessels rolls both of its forms; Rosary Cannon is kept fully charged; the
-> custom HUD frame, save spool and random icons are always on, and the HUD frame offset/scale are
-> fixed too.
+> apply to the Chaos crest; every red tool is always in the random pool (the Needle Phial keeps its
+> vanilla behaviour while equipped); Voltvessels rolls both of its forms; Rosary Cannon is kept
+> fully charged and fires continuously while held; the custom HUD frame, save spool and random
+> icons are always on, and the HUD frame offset/scale are fixed too.
 
 ---
 

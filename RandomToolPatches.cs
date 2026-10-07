@@ -127,6 +127,31 @@ internal static class GetToolStorageAmountPatch
 }
 
 /// <summary>
+/// A random tool is never actually equipped, so a custom-usage FSM loop that asks whether its tool
+/// is equipped (the Rosary Cannon's <c>Shoot Loop</c>, the Snare Setter's charge, ...) sees false
+/// and ends after a single trigger. Report the tool that is currently spoofed for the throw as
+/// equipped for the Active read, so those loops can keep running while the button is held. The HUD
+/// read and every other tool are untouched.
+/// </summary>
+[HarmonyPatch(typeof(ToolItemManager), nameof(ToolItemManager.IsToolEquipped), new[] { typeof(ToolItem), typeof(ToolEquippedReadSource) })]
+internal static class IsToolEquippedPatch
+{
+    [HarmonyPostfix]
+    private static void Postfix(ToolItem tool, ToolEquippedReadSource readSource, ref bool __result)
+    {
+        if (__result || readSource != ToolEquippedReadSource.Active)
+        {
+            return;
+        }
+
+        if (RandomToolService.RandomToolsActive && RandomToolService.IsSpoofed(tool))
+        {
+            __result = true;
+        }
+    }
+}
+
+/// <summary>
 /// The shared budget is mirrored onto every Red tool's amount, but some tools are usable when empty,
 /// so refuse the throw explicitly once the budget is spent.
 /// </summary>

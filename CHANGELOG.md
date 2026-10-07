@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.1
+
+- The Chaos crest's HUD frame now turns blue in the blue-health (lifeblood) state, matching every
+  vanilla crest. It used to stay silver because the custom frame never mirrored the game's
+  lifeblood tint.
+- Replaced the HUD frame art. The old gamma-brightened version (commit `c20c9fd`) read as a bright
+  silver, which made the blue-health frame look like the Steel Soul HUD; the frame is now the
+  new high-resolution art, aligned to the vanilla cloakless spool disk.
+- Every red tool is now **always** in the random tool pool, with no config toggle: the Delver's
+  Drill, Snare Setter, Needle Phial and Rosary Cannon can all be thrown at random. The Needle Phial
+  still works normally while equipped so its quest can be completed (and keeps its own HUD icon),
+  while the Snare Setter now follows the random rule like every other tool.
+- The Rosary Cannon is kept charged and now counts as equipped while its custom-usage loop runs, so
+  holding the button fires continuously just like the vanilla cannon.
+
 ## 0.2.0
 
 - Random silk skills except the Cross Stitch now have a **3% per collected silk skill** chance to

@@ -18,32 +18,28 @@ namespace RandomCrestMod;
 /// obtained yet.</para>
 ///
 /// <para>Normal Red tools share a single <see cref="_usesLeft"/> counter that is reset at every
-/// bench (and on save load). A few tools are special-cased: <c>Extractor</c> (Needle Phial),
-/// <c>Silk Snare</c> (Snare Setter), <c>Rosary Cannon</c> and <c>Screw Attack</c> (Delver's Drill)
-/// are excluded from the pool, and
-/// <c>Lightning Rod</c> (Voltvessels) rolls between its two vanilla forms on every pick.</para>
+/// bench (and on save load). Every red tool is in the pool, including <c>Extractor</c> (Needle
+/// Phial), <c>Silk Snare</c> (Snare Setter), <c>Rosary Cannon</c> and <c>Screw Attack</c>
+/// (Delver's Drill). The Extractor keeps its vanilla behaviour while equipped so its quest can be
+/// finished, and <c>Lightning Rod</c> (Voltvessels) rolls between its two vanilla forms on every
+/// pick.</para>
 ///
 /// <para>Everything here is gated by <see cref="RandomToolsActive"/> / <see cref="RandomSpellsActive"/>
 /// so that nothing (counts, refills, forms) leaks onto other crests.</para>
 /// </summary>
 internal static class RandomToolService
 {
-    /// <summary>
-    /// Internal names excluded from the pool because they do not work when thrown at random:
-    /// Extractor (Needle Phial), Silk Snare (Snare Setter), Rosary Cannon (its usage differs and it
-    /// misfires under rapid tool use) and Screw Attack (Delver's Drill / 掘洞钻, its downward dive
-    /// does not work when thrown at random).
-    /// </summary>
-    private static readonly string[] DefaultExcluded = { "Extractor", "Silk Snare", "Rosary Cannon", "Screw Attack" };
-
     private const string ToggleToolName = "Lightning Rod";
+
+    /// <summary>Rosary Cannon: its ammo/charge lives in its own saved amount, so it is topped up
+    /// while the random tools are live so a random throw is never an empty dud.</summary>
+    private const string RosaryCannonToolName = "Rosary Cannon";
 
     /// <summary>PlayerData bool that selects the thrown (bola) form of Voltvessels.</summary>
     private const string ToggleStateField = "LightningToolToggle";
 
     private static readonly List<ToolItem> RedPool = new();
     private static readonly List<ToolItem> SkillPool = new();
-    private static readonly HashSet<string> Excluded = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Original replenish resources, stashed while a bench refill runs for free.</summary>
     private static readonly Dictionary<ToolItem, ToolItem.ReplenishResources> SavedResources = new();
@@ -51,6 +47,7 @@ internal static class RandomToolService
     private static bool _poolsBuilt;
     private static bool _initialized;
     private static int _usesLeft;
+    private static ToolItem? _rosaryCannon;
 
     // Voltvessels' form lives in PlayerData, so we remember the player's own value and put it back
     // as soon as the throw is over (or the crest is unequipped) to keep the save untouched.
@@ -108,11 +105,11 @@ internal static class RandomToolService
     private static readonly string[] FreeThrowExcludedTools = { "Extractor", "Silk Snare" };
 
     /// <summary>
-    /// Quest / utility tools that keep their vanilla behaviour when equipped on the Chaos crest
-    /// (Snare Setter / Extractor). They are not swapped out for a random tool, so their quests and
-    /// special usage still work.
+    /// The Needle Phial (Extractor) keeps its vanilla behaviour while equipped on the Chaos crest
+    /// so its quest can still be finished. Every other red tool - including the Snare Setter - now
+    /// follows the random rule when the pool is expanded.
     /// </summary>
-    private static readonly string[] VanillaEquipTools = { "Extractor", "Silk Snare" };
+    private static readonly string[] VanillaEquipTools = { "Extractor" };
 
     /// <summary>Tool Pouch upgrade count of the current save (0 when unavailable).</summary>
     internal static int PouchLevel
@@ -185,6 +182,23 @@ internal static class RandomToolService
             _initialized = true;
             ResetUses();
         }
+
+        // Keep the Rosary Cannon in its charged state; its custom usage spends its own saved amount.
+        KeepRosaryCannonCharged();
+    }
+
+    /// <summary>
+    /// The Rosary Cannon's ammo is a plain saved amount that its own FSM spends, so mirror the
+    /// shared budget onto it to keep it charged whenever a random throw can pick it.
+    /// </summary>
+    private static void KeepRosaryCannonCharged()
+    {
+        if (_rosaryCannon == null)
+        {
+            return;
+        }
+
+        SetAmount(_rosaryCannon, UsesPerBench);
     }
 
     /// <summary>Builds the Red/Skill pools from every tool in the game (locked ones included).</summary>
@@ -200,18 +214,13 @@ internal static class RandomToolService
             return;
         }
 
-        Excluded.Clear();
-        foreach (var name in DefaultExcluded)
-        {
-            Excluded.Add(name);
-        }
-
         RedPool.Clear();
         SkillPool.Clear();
+        _rosaryCannon = null;
 
         foreach (var tool in ToolItemManager.GetAllTools())
         {
-            if (tool == null || Excluded.Contains(tool.name))
+            if (tool == null)
             {
                 continue;
             }
@@ -220,6 +229,11 @@ internal static class RandomToolService
             {
                 case ToolItemType.Red:
                     RedPool.Add(tool);
+                    if (string.Equals(tool.name, RosaryCannonToolName, StringComparison.Ordinal))
+                    {
+                        _rosaryCannon = tool;
+                    }
+
                     break;
                 case ToolItemType.Skill:
                     SkillPool.Add(tool);

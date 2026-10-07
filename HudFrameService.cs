@@ -1,4 +1,5 @@
 using System.Text;
+using HarmonyLib;
 using UnityEngine;
 
 namespace RandomCrestMod;
@@ -35,6 +36,13 @@ internal static class HudFrameService
     private static MaterialPropertyBlock? _propertyBlock;
 
     private static bool _showing;
+
+    // Blue health (lifeblood) tint. The game tints its own frame sprite by setting the sprite's
+    // vertex colour and enabling the shader's RECOLOUR keyword. Our overlay is a separate mesh, so
+    // it has to mirror that or the custom frame stays silver while every vanilla frame turns blue.
+    private static AccessTools.FieldRef<BindOrbHudFrame, Color>? _lifebloodTintRef;
+    private static Color _lifebloodTint = new(0.5568628f, 0.8901961f, 1f, 1f);
+    private static bool _tinted;
 
     // The game's own "Bind Orb" FSM toggles the frame's MeshRenderer during the HUD intro
     // (`Init` hides it, then `Appear` shows it once the health HUD has appeared). We therefore
@@ -87,6 +95,7 @@ internal static class HudFrameService
         _cachedOffsetX = float.NaN;
         _cachedOffsetY = float.NaN;
         _showing = false;
+        _tinted = false;
         _gameFrameRevealed = false;
         _weHidGameFrame = false;
     }
@@ -177,6 +186,17 @@ internal static class HudFrameService
         _gameFrameRevealed = _gameRenderer.enabled;
         _weHidGameFrame = false;
 
+        // Read the game's own lifeblood tint from the live frame so a game update cannot desync us.
+        try
+        {
+            _lifebloodTintRef ??= AccessTools.FieldRefAccess<BindOrbHudFrame, Color>("lifebloodTint");
+            _lifebloodTint = _lifebloodTintRef(_hud);
+        }
+        catch
+        {
+            // Keep the known default tint.
+        }
+
         // The game's own silk Orb child sits at the spool centre; anchor our art there so the
         // custom spool lines up with the real one regardless of the HUD layout.
         var orb = _hud.transform.Find("Orb");
@@ -208,6 +228,18 @@ internal static class HudFrameService
         _quadMaterial = baseMat != null
             ? new Material(baseMat) { mainTexture = _texture }
             : new Material(Shader.Find("Sprites/Default")) { mainTexture = _texture };
+
+        // The game creates an instanced copy of the shared material when it enables RECOLOUR, so if
+        // we acquire while the frame is already tinted our clone would inherit the keyword. Start
+        // from a clean, white material; RefreshLifebloodTint re-applies the tint as needed.
+        try
+        {
+            _quadMaterial.DisableKeyword("RECOLOUR");
+            _quadMaterial.color = Color.white;
+        }
+        catch
+        {
+        }
 
         RandomCrestModPlugin.Log($"[HudFrame] using '{PathOf(_hud.transform)}' frame art.");
         return true;
@@ -251,6 +283,7 @@ internal static class HudFrameService
             _cachedOffsetY = oy;
             _quad = BuildQuad(_orbLocal.x + ox, _orbLocal.y + oy, scale);
             _overlayFilter.sharedMesh = _quad;
+            _tinted = false; // fresh mesh is white; re-apply the lifeblood tint below if needed
         }
 
         _overlayRenderer.sharedMaterial = _quadMaterial;
@@ -260,6 +293,8 @@ internal static class HudFrameService
             _propertyBlock.SetTexture("_MainTex", _texture);
             _overlayRenderer.SetPropertyBlock(_propertyBlock);
         }
+
+        RefreshLifebloodTint();
 
         _overlayRenderer.enabled = true;
         _overlayGo.SetActive(true);
@@ -295,9 +330,64 @@ internal static class HudFrameService
         _showing = false;
     }
 
+    /// <summary>
+    /// Mirrors <see cref="BindOrbHudFrame.RefreshLifebloodTint"/> on our overlay: when the hero is
+    /// in the blue-health (lifeblood) state, tint the quad's vertex colours and enable the shader's
+    /// RECOLOUR keyword; otherwise go back to white and disable it. Only reacts to state changes.
+    /// </summary>
+    private static void RefreshLifebloodTint()
+    {
+        if (_quad == null || _quadMaterial == null)
+        {
+            return;
+        }
+
+        var tinted = false;
+        try
+        {
+            var hero = HeroController.instance;
+            tinted = hero != null && hero.IsInLifebloodState;
+        }
+        catch
+        {
+            tinted = false;
+        }
+
+        if (tinted == _tinted)
+        {
+            return;
+        }
+
+        _tinted = tinted;
+        if (tinted)
+        {
+            _quadMaterial.EnableKeyword("RECOLOUR");
+            SetQuadColors(_lifebloodTint);
+        }
+        else
+        {
+            _quadMaterial.DisableKeyword("RECOLOUR");
+            SetQuadColors(Color.white);
+        }
+    }
+
+    private static void SetQuadColors(Color color)
+    {
+        if (_quad == null)
+        {
+            return;
+        }
+
+        // The generated frame quad always has exactly four vertices.
+        _quad.colors = new[] { color, color, color, color };
+    }
+
     // Spool (disk) centre inside the source art, as a fraction of the image (x from left, y from top).
-    private const float SpoolFracX = 0.15143f;
-    private const float SpoolFracY = 0.53109f;
+    // Current crest_hud_frame.png is the high-res 2374x2186 art; its disk centre is at pixel
+    // (350.5,1153.0). The overlay is scaled so that 640 px disk = the vanilla 89 px disk
+    // (HudFrameScale 0.9125). Keep those two in sync when the art changes.
+    private const float SpoolFracX = 0.14764f;
+    private const float SpoolFracY = 0.52745f;
 
     private static Mesh BuildQuad(float spoolX, float spoolY, float scale)
     {

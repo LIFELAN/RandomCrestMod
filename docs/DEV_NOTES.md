@@ -5,7 +5,9 @@
 
 ## 零、版本 & 状态（每次开工先看这里）
 
-> **当前版本 v0.2.0（已发布 Thunderstore + GitHub Release / tag `v0.2.0`）**：在 v0.1.9 基础上新增“收集奖励”四件套，全部只在装备纷乱时生效，均已实测通过：
+> **当前版本 v0.2.1（本轮改动，待发布）**：在 v0.2.0 基础上：①蓝血 HUD 染色修复 + 更换高清 HUD 外框（对齐原版 cloakless 盘）；②所有红工具**始终**进随机池（`AllToolsRandom` 配置移除，`Extractor` 装备时仍豁免、`Silk Snare` 改为遵循随机）；③念珠炮始终充能 + 长按连发（`IsToolEquippedPatch`）；④符文之怒改动整体退回（删除 `RuneRageRadiusService`）。详情见“五之六”；版本号 `Directory.Build.props` / `thunderstore.toml` 均为 `0.2.1`。
+>
+> **v0.2.0（已发布 Thunderstore + GitHub Release / tag `v0.2.0`）**：在 v0.1.9 基础上新增“收集奖励”四件套，全部只在装备纷乱时生效，均已实测通过：
 > 1. 法术概率退丝 `SpellSilkRefund`（详见“五之五”）：除十字绣外每次施放首个扣丝 `3%×已获得法术` 立即退丝；十字绣照旧真格挡必退。
 > 2. 免费投掷口径改为“已获得红色工具 × 2% + 曲镰升级 +2%”（上限 40%），工具袋不再提供免费投掷（容量 +25%/级保留）。
 > 3. 生质液瓶随机掷到且拥有生质液腺时，蓝血由 +1 提升到 +3（`LifebloodSyringeService` / `LifebloodSyringePatch.cs`，复用原版 `ADD BLUE HEALTH` 连发）。
@@ -162,7 +164,7 @@
 - 用 `GetWillThrowTool` 的 prefix/postfix 开一个"窗口"（`IsPicking`），只在投掷路径重掷，避免报告逻辑重复随机。
 - 替换点在 `GetBoundAttackTool` 的 `ToolReturn Active` 分支；`ThrowTool` 会用 `GetAttackToolBinding` 反推 binding，所以补丁里对 spoof 工具返回按下的 binding。
 - 池：`ToolItemType.Red`（工具）与 `ToolItemType.Skill`（法术，6 个）。
-- **硬编码排除**：`Extractor`(Needle Phial)、`Silk Snare`(Snare Setter)、`Rosary Cannon`(念珠炮，使用方式特殊 + 快速连投容易哑弹)、`Screw Attack`(Delver's Drill / 掘洞钻，向下突进的钻头，随机投掷无法正常工作)。
+- **所有红工具都在池里（v0.2.1 起）**：原 `DefaultExcluded`（`Extractor` / `Silk Snare` / `Rosary Cannon` / `Screw Attack`）与 `AllToolsRandom` 配置已删除；`Extractor` 始终在装备时豁免（保持原版功能 / 图标）。
 - **特殊处理**：`Lightning Rod`(Voltvessels / 电枢球) 每次抽取时随机掷 `offState`(标枪，FSM 事件
   `LIGHTNING ROD`) / `onState`(流星锤，ThrowPrefab)，即 `RandomToolService.RollToggleState()`。该形态存在
   `PlayerData.LightningToolToggle`，所以 `RollToggleState` 会先快照玩家自己的值，`RestoreToggleState` 在
@@ -291,11 +293,34 @@
 - 框架 Tick（`RandomCrestRunner.Update`）新增 `SpellSilkRefund.Tick()` 与 `LifebloodSyringeService.Tick()`。
 - `RandomCrestModPlugin` 新增 `EnableSpellSilkRefund = true`，并注册 `SpellSilkRefundPatch` / `LifebloodSyringePatch`。
 
+## 五之六、本轮改动（v0.2.1）
+
+### 1. 蓝血状态 HUD 染色（`HudFrameService`）
+
+- **问题**：进入蓝血（lifeblood）状态后，游戏会给自己的 `Bind Orb` frame sprite 染蓝——`BindOrbHudFrame.RefreshLifebloodTint()`（`acs/BindOrbHudFrame.cs:264`）执行 `tk2dSprite.color = lifebloodTint; EnableKeyword("RECOLOUR")`，`lifebloodTint` 预制体里是 `(0.557, 0.890, 1.0, 1.0)`。我们的叠加层是独立 mesh + 复制材质，从不复刻这一步，而装备纷乱时又把游戏 renderer 藏了，所以框保持银色，看起来像“钢魂 HUD”。
+- **修法**：`HudFrameService.Acquire()` 用 `AccessTools.FieldRefAccess<BindOrbHudFrame, Color>("lifebloodTint")` 读游戏实际 tint，并先给复制材质 `DisableKeyword("RECOLOUR")` + 白色归零；`Apply()` 每帧调 `RefreshLifebloodTint()`：`HeroController.instance.IsInLifebloodState` 为真时给 quad 顶点色写 tint 并 `EnableKeyword("RECOLOUR")`，否则回白 + `DisableKeyword`。只在状态切换时写；重建 quad 时把 `_tinted` 复位。
+- **依据**：`RECOLOUR` 走顶点色（`PoisonTintTk2dSprite.Colour => sprite.color`），材质是 `Sprites/Default-ColorFlash`。
+
+### 2. 全道具随机（始终生效，无配置项）
+
+- `RandomToolService.EnsurePools` 现在把**所有红色工具**都收进 `RedPool`（原 `DefaultExcluded` / `Excluded` 已删除）；`AllToolsRandom` 配置项已移除，不再可配。
+- `VanillaEquipTools` 只留 `{ "Extractor" }`：主动装备储液针管仍是针管本尊（任务/图标），陷阱设置器改为和普通红工具一样遵循随机（装备时会被替换、HUD 显示随机图标）。
+- 免费投掷（+2%/件）继续排除 `Extractor` / `Silk Snare`（`FreeThrowExcludedTools` 不变），所以掘洞钻和念珠炮各 +2%，另两件不计。
+- **念珠炮始终充能 + 长按连发**：`Rosary Cannon` 是 `ToolItemLerpStates` + `isCustomUsage`，弹药走自己的 `SavedData.AmountLeft`；`EnsurePools` 缓存 `_rosaryCannon`，`Tick()` 每帧 `KeepRosaryCannonCharged()` 把它同步到 `UsesPerBench`。另外，`Shoot Loop` 的 `GetToolEquipInfo` 的 `Tool` 参数是**直接引用念珠炮本体**（FSM 模板里 `value=PPtr(...,-329254137206601981)`），而随机工具并未真正装备，`IsEquipped` 为 false 会让循环一发就结束；新增 `IsToolEquippedPatch`（`ToolItemManager.IsToolEquipped` postfix）在 `readSource==Active && IsSpoofed(tool)` 时报 true（HUD 读取不动），所以按住可一直发。`Shoot` 的 `CustomToolUsage` 也是同一个 `Tool` 引用。
+- 注意：四件里 `Silk Snare` / `Rosary Cannon` / `Screw Attack` 都是 FSM 事件工具（`ThrowPrefab == null`），不会进连投链（`AfterThrow` 的 `!_throwConsumed` 分支会结束链），属预期。
+
+（原「符文之怒只加半径」改动已整体退回，`RuneRageRadiusService.cs` 已删除。）
+
 ## 六、HUD / 存档界面美术
+
+- 已解包：`C:\Users\fuenlai\Desktop\Silksong_HUD_Frames\` 下每个纹章一张 idle frame（`hunter` / `cloakless` / `hunter_v2` / `hunter_v3` / `warrior_beast` / `reaper` / `wanderer` / `witch_cursed` / `witch` / `toolmaster_architect` / `spell_shaman`），源脚本 `tmpwork/extract_crest_hud_frames.py`（从 `hud_assets_all.bundle` 的 atlas0 按 UV 裁剪）。游戏里没有单独的钢魂 HUD 贴图，钢魂外观更可能是 desaturate/黑色染。
 
 - 资源（`Assets/`，内嵌 DLL）：
   - `crest_icon.png` / `crest_silhouette.png` / `crest_glow.png` — 纹章本体图标 / 剪影 / 装备爆光（发光剪影）；
-  - `crest_hud_frame.png` — 左上角缚丝丝轴外框（用户绘制，后期 gamma≈1.35 提亮），**ppu 420**；
+  - `crest_hud_frame.png` — 左上角缚丝丝轴外框（用户绘制），**ppu 420**；
+    **不要提亮**：v0.1.0 发布后曾用 gamma≈1.35 提亮过一版（提交 `c20c9fd`），结果蓝血状态下框整体偏亮、很像钢魂外观。
+    用户 2026-10-08 给了 cloakless 对齐参考（331×303，md5 `178661e7`）帮定位：盘心在原版 cloakless 盘位置、盘直径 89px = 原版。但该低清图进游戏被放大 ~6.5x 会有毛边，所以最终用回高清 `新版hud.png`（2374×2186，md5 `1f5756cd`，与参考版同一美术，只是整体缩放/平移差）。
+    对齐常量：`HudFrameService.SpoolFrac = (0.14764, 0.52745)`（高清图盘心 pixel (350.5,1153.0)），`RandomCrestModPlugin.HudFrameScale = 0.9125`（让 640px 盘渲染成原版 1.390625 世界单位）；偏移 `HudFrameOffsetX/Y = (-0.84, 0.16)` 即原版 cloakless 盘在 Bind Orb 下的局部位置，不用动。换图后重新量盘心 pixel 与盘直径即可同步这三个值。
   - `crest_save_spool.png` — 存档选择界面 spool（226×173）；
   - `crest_random_tool.png` — HUD 工具固定图标（红色，"兵械库"成就图标再上色 + 圆形柔边遮罩），**ppu 390**；
   - `crest_random_tool_poison.png` — 同上图标的紫色版（花芯囊中毒时），由红版整体 hue-rotate −0.23 生成，**ppu 390**；
