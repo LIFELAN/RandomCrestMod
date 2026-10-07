@@ -75,7 +75,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 
     internal static readonly bool DebugLogging = false;
 
-    internal static readonly float HudFrameOffsetX = -0.85f;
+    internal static readonly float HudFrameOffsetX = -0.84f;
 
     internal static readonly float HudFrameOffsetY = 0.16f;
 

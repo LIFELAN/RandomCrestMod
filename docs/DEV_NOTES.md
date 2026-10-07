@@ -320,7 +320,7 @@
   - `crest_hud_frame.png` — 左上角缚丝丝轴外框（用户绘制），**ppu 420**；
     **不要提亮**：v0.1.0 发布后曾用 gamma≈1.35 提亮过一版（提交 `c20c9fd`），结果蓝血状态下框整体偏亮、很像钢魂外观。
     用户 2026-10-08 给了 cloakless 对齐参考（331×303，md5 `178661e7`）帮定位：盘心在原版 cloakless 盘位置、盘直径 89px = 原版。但该低清图进游戏被放大 ~6.5x 会有毛边，所以最终用回高清 `新版hud.png`（2374×2186，md5 `1f5756cd`，与参考版同一美术，只是整体缩放/平移差）。
-    对齐常量（均写死在 `RandomCrestModPlugin`；曾短暂做成 `[Hud]` 配置，后已移除）：`SpoolFrac = (0.14764, 0.52745)`（高清图盘心 pixel (350.5,1153.0)）；`HudFrameOffsetX/Y = (-0.85, 0.16)`（原版 cloakless 盘在 Bind Orb 下的局部位置，X 比初始 -0.84 左移 0.01）；`HudFrameScale = 0.9125`（让 640px 盘渲染成原版 1.390625 世界单位）。换图后重新量盘心 pixel 与盘直径即可同步。
+    对齐常量：`HudFrameService.SpoolFrac = (0.14764, 0.52745)`（高清图盘心 pixel (350.5,1153.0)），`RandomCrestModPlugin.HudFrameScale = 0.9125`（让 640px 盘渲染成原版 1.390625 世界单位）；偏移 `HudFrameOffsetX/Y = (-0.84, 0.16)` 即原版 cloakless 盘在 Bind Orb 下的局部位置，不用动。换图后重新量盘心 pixel 与盘直径即可同步这三个值。
   - `crest_save_spool.png` — 存档选择界面 spool（226×173）；
   - `crest_random_tool.png` — HUD 工具固定图标（红色，"兵械库"成就图标再上色 + 圆形柔边遮罩），**ppu 390**；
   - `crest_random_tool_poison.png` — 同上图标的紫色版（花芯囊中毒时），由红版整体 hue-rotate −0.23 生成，**ppu 390**；
