@@ -97,21 +97,22 @@
 
 ---
 
-## 一、当前状态（截至已发布的 v0.1.9）
+## 一、当前状态（截至已发布的 v0.2.1）
 
-- 编译：`dotnet build -c Debug`，**0 警告 0 错误**。
+- 编译：`dotnet build -c Release`，**0 警告 0 错误**。
 - 已安装：`<游戏>/BepInEx/plugins/lifelan-RandomCrestMod/RandomCrestMod.dll`（构建会自动复制）。
 - 仓库：https://github.com/LIFELAN/RandomCrestMod（默认分支 `master`）。
-- **已发布 v0.1.9**（十字绣真格挡退丝 / 贴图优化 / Glow + 技能弹窗剪影）。
+- **已发布 v0.2.1**（Thunderstore + GitHub Release / tag `v0.2.1`）：蓝血 HUD 染色、高清 HUD 外框、全道具始终随机、念珠炮长按连发。
+- **本地工作区代码与 tag `v0.2.1` 完全一致**（仅 DEV_NOTES 的“已发布”标注不同）。HUD 偏移/缩放曾短暂做过 `[Hud]` 配置，已整体移除并写死回发布值（`-0.84 / 0.16 / 0.9125`）。下次直接改代码从 `master` 最新提交继续即可。
 
-最近提交：
+最近提交（从新到旧）：
 ```
-4d8b254 Release v0.1.9: parry silk refund, crest texture polish, taunt 0-50
-8bf08ea Release v0.1.8: standard taunt can roll 0 rosaries
-4655786 Release v0.1.7: tool barrage, pouch growth, taunt offering
-221dcbd Make the Chaos crest's Cross Stitch auto-counter; drop Delver's Drill
-5823200 Let a random Shaman bind cross scene gates
-0f7931b Randomize the R3 taunt and Voltvessels forms; drop Rosary Cannon
+f84b878 Revert HUD frame tuning to the published v0.2.1 values
+a327c1d Bake HUD frame offset/scale values, drop their config entries
+75f14af Add HUD frame scale config (internal tuning)
+a0c6fff Add HUD frame offset config (internal tuning)
+0466caf Docs: mark v0.2.1 as published
+58fd4f1 Release v0.2.1: lifeblood HUD tint, high-res frame, all-tools random, cannon barrage
 ```
 
 ## 二、模组基本定义
@@ -397,14 +398,26 @@
 ## 十、环境 / 路径 / 分析资料
 
 - 游戏：`C:\Program Files (x86)\Steam\steamapps\common\Hollow Knight Silksong`
-- 配置：`<游戏>/BepInEx/config/io.github.lifelan.randomcrestmod.cfg`（旧配置有孤儿键时可直接删文件让其重建）
-- 分析资料（同机 `E:\Agent\Pi\tmpwork`）：
-  - `acs/` — `Assembly-CSharp.dll` 的反编译源码；
-  - `fsm_Bind.txt` / `fsm_Sprint.txt` / `fsm_CrestAttacks.txt` 等 — PlayMaker FSM 状态机 dump；
+- 配置：`<游戏>/BepInEx/config/io.github.lifelan.randomcrestmod.cfg`（旧配置有孤儿键时可直接删文件让其重建；当前只含 `[Tools] ToolUsesPerBench`）
+- 分析资料（同机 `E:\Agent\Pi\tmpwork`，**完整索引见 `tmpwork/INDEX.md`**）：
+  - `acs/` — `Assembly-CSharp.dll` 的反编译源码（`acs/full.cs` 是全量合并版，查类/方法最快）；`acs/HutongGames.PlayMaker.Actions/` 是各 PlayMaker Action 源码；
+  - `tk2d_src/` — 反编译的 `TeamCherry.TK2D`（`tk2dSprite.EnableKeyword`、`tk2dBaseSprite.color`）；
+  - `fsm_Bind.txt` / `fsm_SilkSpecials.txt` / `fsm_Sprint.txt` / `fsm_CrestAttacks.txt` / `_fsm_init_full.txt` / `_fsmtmpl_now.txt` — PlayMaker FSM 状态机 dump；
   - `src/` — 手工整理的关键类；
-  - `crestspools/`、`hudtk/`、`sil_all/` — 提取的游戏美术；
-  - 各种 `dump_*.py` / `extract_*.py` — UnityPy 提取脚本（本地化需 `TeamCherry.SharedUtils` 的固定密钥 AES-ECB 解密）。
+  - `crestspools/`、`hudtk/`、`sil_all/`、`orb_sprites/`、`spoolparts/` — 提取的游戏美术；
+  - 桌面 `Silksong_HUD_Frames/` — 每个纹章一张 HUD idle frame（脚本 `extract_crest_hud_frames.py`）。
+- **本轮（v0.2.1）新增的关键脚本（均在 `tmpwork/`）**：
+  - `extract_crest_hud_frames.py` — 从 `hud_assets_all.bundle` 的 atlas0 按 UV 裁剪出每个纹章的 HUD idle frame；
+  - `_list_hud_clips.py` / `_list_hud_frames.py` — 列出 Bind Orb 动画 clip 与 sprite 名；
+  - `_disk_blobs.py` / `_disk_compare.py` / `_dump_cloakless_def.py` — 量 HUD 图里丝轴盘的像素中心/直径，对照原版 sprite 几何；
+  - `_dump_red_tools.py` — 全部红工具 + 按 `CountKey` 的分组（免费投掷计数依据）；
+  - `_dump_bind.py` — Bind / Spell Control FSM 带参数 dump（快捷制造、Shoot Loop 等）；
+  - `_dump_silkbomb2.py` — Silk Specials（符文之怒）状态带参数 dump；
+  - `_dump_toolfsm.py` — 工具攻击 FSM 的 `GetToolEquipInfo` / `CustomToolUsage` 参数（确认念珠炮 `Tool` 是直接引用）；
+  - `dump_rosarycannon.py` — 念珠炮 ToolItem 字段；
+  - `dump_bindorb_mat.py` / `dump_shaders.py` / `dump_shader_recolour.py` — Bind Orb 材质与 `Sprites/Default-ColorFlash` shader 关键字。
 - 构建需要 `SilksongPath.props`（已被 git 忽略），指向游戏目录。
+- **发版流程**：`dotnet build -c Release` → `dotnet tcli build` → 提交 + `git tag vX.Y.Z` + `git push origin master vX.Y.Z`（CI 自动发 Thunderstore）；GitHub Release 用本机 GCM 凭据调 REST API 建（见“十一”）。
 
 ## 十一、Thunderstore 发布
 
