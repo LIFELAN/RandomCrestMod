@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0
+
+- Random silk skills except the Cross Stitch now have a **3% per collected silk skill** chance to
+  refund the silk their cast spent. Only the first silk spend of a cast rolls, the refund is paid
+  immediately (same spool animation as the Cross Stitch refund), and the skill still has to be
+  affordable, so silk is required up front. The Cross Stitch keeps its guaranteed real-parry refund.
+- The Tool Pouch no longer grants the free-throw chance. Instead every **collected red tool** adds
+  **2%** (the Curvesickle upgrade adds another **2%**, capped at 40%) that a throw costs no use. The
+  Snare Setter and the Extractor never count, as they are never thrown at random.
+- The Snare Setter and the Extractor now keep their vanilla behaviour when equipped on the Chaos
+  crest instead of being swapped for a random tool, so their quests / special usage still work (and
+  their own HUD icon is shown).
+- The random Plasmium Phial now grants **3** blue health instead of 1 once the Plasmium Gland has
+  been obtained, so the lifeblood questline pays off on the Chaos crest.
+- The random tool HUD icon now turns purple while Poison Pouch poisons the equipped tool. It used
+  to go grey because the mod forced the icon white on top of the vanilla poison recolour shader.
+
 ## 0.1.9
 
 - Cross Stitch: a real parry (the defensive stance is struck) now refunds the silk the cast spent,

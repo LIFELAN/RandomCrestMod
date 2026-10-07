@@ -55,6 +55,11 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
     /// auto counter (stance expired without a hit) still costs its silk.</summary>
     internal static readonly bool EnableParrySilkRefund = true;
 
+    /// <summary>When true, every random silk skill except the Cross Stitch has a chance (3% per
+    /// collected silk skill) to refund the silk it just spent, paid immediately like the Cross
+    /// Stitch refund. Only the first silk spend of a cast rolls.</summary>
+    internal static readonly bool EnableSpellSilkRefund = true;
+
     /// <summary>Highlight strength applied to Hornet during the Cross Stitch retreat step, only
     /// while the Chaos crest is equipped (0 = off).</summary>
     internal static readonly float HeroHighlightAmount = 1f;
@@ -96,6 +101,8 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
         _harmony.PatchAll(typeof(ParryTriggerPatches));
         _harmony.PatchAll(typeof(ParryClashEffectPatch));
         _harmony.PatchAll(typeof(ParrySilkRefundPatch));
+        _harmony.PatchAll(typeof(SpellSilkRefundPatch));
+        _harmony.PatchAll(typeof(LifebloodSyringePatch));
         _harmony.PatchAll(typeof(HeroHighlightPatch));
         _harmony.PatchAll(typeof(ReaperPayoutPatch));
         _harmony.PatchAll(typeof(AnimationFallbackPatches));
@@ -113,7 +120,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
         _harmony.PatchAll(typeof(RandomToolSaveLoadedPatch));
         _harmony.PatchAll(typeof(PlayerDataSilkSkillCostPatch));
         _harmony.PatchAll(typeof(ToolHudIconSpritePatch));
-        _harmony.PatchAll(typeof(RadialHudIconColourPatch));
+        _harmony.PatchAll(typeof(ToolHudIconColourPatch));
         _harmony.PatchAll(typeof(SkillGetMsgCrestSilhouettePatch));
 
         // Optional custom crest art (embedded PNGs). Drop crest_icon.png / crest_silhouette.png /
@@ -134,6 +141,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
         // The tool glyphs are finer/denser than the spell ones, so load them at a lower ppu to make
         // the tool icon occupy a similar share of the HUD slot.
         RandomIconService.ToolIcon = LoadEmbeddedSprite("crest_random_tool.png", 390f);
+        RandomIconService.PoisonToolIcon = LoadEmbeddedSprite("crest_random_tool_poison.png", 390f);
         RandomIconService.SpellIcon = LoadEmbeddedSprite("crest_random_spell.png", 420f);
 
         gameObject.AddComponent<RandomCrestRunner>();
@@ -221,6 +229,8 @@ internal sealed class RandomCrestRunner : MonoBehaviour
         RandomBindService.Tick();
         RandomToolService.Tick();
         RandomTauntService.Tick();
+        SpellSilkRefund.Tick();
+        LifebloodSyringeService.Tick();
         ParryAutoCounterService.Tick();
         CrestService.EnsureCreated();
         CrestService.EnsureUnlocked();

@@ -58,6 +58,9 @@
   <ItemGroup Condition="Exists('Assets/crest_random_tool.png')">
     <EmbeddedResource Include="Assets/crest_random_tool.png" LogicalName="RandomCrestMod.crest_random_tool.png" />
   </ItemGroup>
+  <ItemGroup Condition="Exists('Assets/crest_random_tool_poison.png')">
+    <EmbeddedResource Include="Assets/crest_random_tool_poison.png" LogicalName="RandomCrestMod.crest_random_tool_poison.png" />
+  </ItemGroup>
   <ItemGroup Condition="Exists('Assets/crest_random_spell.png')">
     <EmbeddedResource Include="Assets/crest_random_spell.png" LogicalName="RandomCrestMod.crest_random_spell.png" />
   </ItemGroup>

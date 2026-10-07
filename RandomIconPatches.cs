@@ -26,18 +26,31 @@ internal static class ToolHudIconSpritePatch
 }
 
 /// <summary>
-/// The vanilla HUD tints the icon with the per-binding active/inactive colour. The random icons are
-/// already coloured, so keep them untinted.
+/// The vanilla HUD tints the icon with the per-binding active/inactive colour and, while the tool
+/// is poisoned / zapped, recolours it through the "RECOLOUR" / "CAN_HUESHIFT" shader keywords. The
+/// random icons (including the purple poison variant) are already coloured, so keep them untinted
+/// and strip those keywords. This patches the <see cref="ToolHudIcon.SetIconColour"/> override
+/// rather than the <see cref="RadialHudIcon"/> base so the postfix runs after the vanilla keyword
+/// logic (which would otherwise recolour the purple icon back to grey).
 /// </summary>
-[HarmonyPatch(typeof(RadialHudIcon), "SetIconColour")]
-internal static class RadialHudIconColourPatch
+[HarmonyPatch(typeof(ToolHudIcon), "SetIconColour")]
+internal static class ToolHudIconColourPatch
 {
     [HarmonyPostfix]
-    private static void Postfix(SpriteRenderer spriteRenderer)
+    private static void Postfix(SpriteRenderer icon)
     {
-        if (RandomIconService.IsRandomIcon(spriteRenderer.sprite))
+        if (!RandomIconService.IsRandomIcon(icon.sprite))
         {
-            spriteRenderer.color = Color.white;
+            return;
+        }
+
+        icon.color = Color.white;
+
+        var material = icon.material;
+        if (material != null)
+        {
+            material.DisableKeyword("RECOLOUR");
+            material.DisableKeyword("CAN_HUESHIFT");
         }
     }
 }

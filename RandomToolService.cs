@@ -91,11 +91,28 @@ internal static class RandomToolService
     /// <summary>Shared capacity gained per Tool Pouch upgrade (vanilla's 25% pouch increase).</summary>
     private const float PouchCapacityIncrease = 0.25f;
 
-    /// <summary>Free-throw chance granted by each Tool Pouch upgrade.</summary>
-    private const float FreeThrowChancePerLevel = 0.08f;
+    /// <summary>Free-throw chance granted by each obtained red tool.</summary>
+    private const float FreeThrowChancePerTool = 0.02f;
+
+    /// <summary>Extra free-throw chance once the Curve Claws have been upgraded to the Curvesickle.</summary>
+    private const float FreeThrowCurveclawUpgradeBonus = 0.02f;
 
     /// <summary>Upper bound for the free-throw chance.</summary>
     private const float FreeThrowChanceCap = 0.4f;
+
+    /// <summary>
+    /// Quest tools that never contribute to the free-throw chance. Both are excluded from the random
+    /// pool; here they are also the only collectables the chance ignores, so collecting them does not
+    /// pay off (they are not thrown at random).
+    /// </summary>
+    private static readonly string[] FreeThrowExcludedTools = { "Extractor", "Silk Snare" };
+
+    /// <summary>
+    /// Quest / utility tools that keep their vanilla behaviour when equipped on the Chaos crest
+    /// (Snare Setter / Extractor). They are not swapped out for a random tool, so their quests and
+    /// special usage still work.
+    /// </summary>
+    private static readonly string[] VanillaEquipTools = { "Extractor", "Silk Snare" };
 
     /// <summary>Tool Pouch upgrade count of the current save (0 when unavailable).</summary>
     internal static int PouchLevel
@@ -555,16 +572,115 @@ internal static class RandomToolService
         ToolItemManager.ReportAllBoundAttackToolsUpdated();
     }
 
+    /// <summary>
+    /// Free-throw chance now scales with the number of <b>collected</b> red tools (2% each) instead
+    /// of the Tool Pouch level, so every tool pickup matters. The Curvesickle upgrade adds another
+    /// 2%. Still capped so an abnormal save cannot reach a guaranteed free throw.
+    /// </summary>
     private static bool RollFreeThrow()
     {
-        var level = PouchLevel;
-        if (level <= 0)
+        var toolCount = ObtainedRedToolCount();
+        var upgraded = CurveclawUpgraded;
+        var chance = toolCount * FreeThrowChancePerTool;
+        if (upgraded)
+        {
+            chance += FreeThrowCurveclawUpgradeBonus;
+        }
+
+        chance = Mathf.Min(FreeThrowChanceCap, chance);
+        RandomCrestModPlugin.Log(
+            $"[RandomTool] free-throw chance={chance:P0} (tools={toolCount}, curvesickle={upgraded}).");
+        return chance > 0f && UnityEngine.Random.value < chance;
+    }
+
+    /// <summary>
+    /// Number of red tools the save has obtained. A tool still counts after an upgrade has replaced
+    /// / hidden it (e.g. the base Curve Claws once the Curvesickle is owned), matching the rule that
+    /// every collection permanently raises the free-throw chance. The two quest tools are ignored.
+    /// </summary>
+    private static int ObtainedRedToolCount()
+    {
+        // Group by CountKey so an upgrade line (Curve Claws -> Curvesickle) counts once, exactly
+        // like the game's own tool achievement counting. The base tool still counts after an upgrade
+        // has hidden/replaced it, so every collection permanently raises the chance.
+        var groups = new HashSet<SavedItem>();
+        try
+        {
+            foreach (var tool in ToolItemManager.GetAllTools())
+            {
+                if (tool == null || tool.Type != ToolItemType.Red || IsFreeThrowExcluded(tool))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (tool.SavedData.IsUnlocked)
+                    {
+                        groups.Add(tool.CountKey);
+                    }
+                }
+                catch
+                {
+                    // PlayerData is momentarily unavailable; ignore this tool for now.
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            RandomCrestModPlugin.LogError("[RandomTool] obtained tool count failed: " + e.Message);
+        }
+
+        return groups.Count;
+    }
+
+    private static bool IsFreeThrowExcluded(ToolItem tool)
+    {
+        foreach (var name in FreeThrowExcludedTools)
+        {
+            if (string.Equals(tool.name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>True for the quest tools that keep their vanilla behaviour when equipped.</summary>
+    internal static bool IsVanillaEquipTool(ToolItem? tool)
+    {
+        if (tool == null)
         {
             return false;
         }
 
-        var chance = Mathf.Min(FreeThrowChanceCap, level * FreeThrowChancePerLevel);
-        return UnityEngine.Random.value < chance;
+        foreach (var name in VanillaEquipTools)
+        {
+            if (string.Equals(tool.name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>True once the Curvesickle upgrade (Curve Claws Upgraded) has been obtained.</summary>
+    private static bool CurveclawUpgraded
+    {
+        get
+        {
+            try
+            {
+                var upgraded = Gameplay.CurveclawUpgradedTool;
+                return upgraded != null && upgraded.SavedData.IsUnlocked;
+            }
+            catch
+            {
+                return false;
+            }
+        }
     }
 
     /// <summary>

@@ -5,7 +5,16 @@
 
 ## 零、版本 & 状态（每次开工先看这里）
 
-> **已发布**：v0.1.9（= v0.1.8 + 十字绣真格挡退丝 / 纹章贴图优化 / Glow + 技能弹窗剪影；tag `v0.1.9`，已发 Thunderstore）。
+> **当前版本 v0.2.0（已构建打包，待发布 Thunderstore）**：在 v0.1.9 基础上新增“收集奖励”四件套，全部只在装备纷乱时生效，均已实测通过：
+> 1. 法术概率退丝 `SpellSilkRefund`（详见“五之五”）：除十字绣外每次施放首个扣丝 `3%×已获得法术` 立即退丝；十字绣照旧真格挡必退。
+> 2. 免费投掷口径改为“已获得红色工具 × 2% + 曲镰升级 +2%”（上限 40%），工具袋不再提供免费投掷（容量 +25%/级保留）。
+> 3. 生质液瓶随机掷到且拥有生质液腺时，蓝血由 +1 提升到 +3（`LifebloodSyringeService` / `LifebloodSyringePatch.cs`，复用原版 `ADD BLUE HEALTH` 连发）。
+> 4. 储液针管 / 陷阱设置器装备时豁免随机替换，走原版功能（任务可完成，HUD 显示原图标）。
+>
+> 新增文件 `SpellSilkRefund.cs`、`LifebloodSyringePatch.cs`；版本号 `Directory.Build.props` / `thunderstore.toml` 均为 `0.2.0`。
+> 编译 `dotnet build -c Release` **0 警告 0 错误**；`dotnet tcli build` 产出 `dist/LIFELAN-RandomCrestMod-0.2.0.zip`。
+>
+> **历史：已发布** v0.1.9（= v0.1.8 + 十字绣真格挡退丝 / 纹章贴图优化 / Glow + 技能弹窗剪影；tag `v0.1.9`，已发 Thunderstore）。
 > 更早：v0.1.8（普通档嘲讽也可给 0 念珠，未单独写 changelog）。
 > 本版三块内容（均已并入 `## 0.1.9` 更新日志）：
 > 1. 十字绣**真格挡退还本次灵丝** `ParrySilkRefund`（详见“五之四”）——真格挡不花丝，自动释放照常花；
@@ -245,6 +254,43 @@
 - 实测重点（0.1.9 已全部实测通过）：①真格挡退 3、带蚤母卵退 2；②自动释放不退；③满丝附近不溢出；
   ④连续多次格挡每次都能退；⑤换成别的纹章后十字绣完全原版。
 
+## 五之五、收集奖励（法术退丝 / 工具免费投掷 / 生质液瓶 / 任务工具豁免，未发布）
+
+> 目标：鼓励收集、让每次收集与任务有回报，并尽量能单一纹章通关。全部只在装备纷乱时生效。
+
+### 1. 法术概率退丝 `SpellSilkRefund`（新文件）
+
+- 除十字绣外的 5 个法术，**每次施放的首个扣丝**掷一次 `3% × 已获得法术数`（`ToolItemManager.GetOwnedToolsCount(Skill)`，0~6 → 0~18%），命中则**立即** `AddSilk(spent, heroEffect:false)`（与十字绣同一套动画/反馈）。
+- 捕获点：`HeroController.TakeSilk(int)` postfix，仅当 `silkSpecialFSM` 处于技能扣丝状态（`Start Throw` / `A Sphere Start` / `A Sphere Repeat` / `Silk Bomb Start` / `Silk Bomb Restart` / `Silk Charge Begin` / `BossNeedle Cast`）时记录。
+- **一次性**：`_rolledThisCast` 在首次扣丝时置真，`SpellSilkRefund.Tick()` 只在 FSM 回到 `Idle` 才复位，所以丝球延长 / 丝弹续发不会重复掷。
+- `Parry Start`（十字绣）和 `Silk Taunt`（嘲讽）都不在技能状态表里；十字绣继续走 `ParrySilkRefund` 的真格挡必退，两者不叠加。`-1` 技能折扣（`RandomSpellSilkDiscount`）保留，退的是实际扣掉的量。
+- 开关 `EnableSpellSilkRefund`。
+
+### 2. 免费投掷改由已获得红工具提供 `RandomToolService`
+
+- `RollFreeThrow()`：`ObtainedRedToolCount() × 2%`，曲镰升级（`Gameplay.CurveclawUpgradedTool.SavedData.IsUnlocked`）再 **+2%**，上限仍 **40%**。工具袋等级不再提供免费投掷（容量 +25%/级保留）。
+- `ObtainedRedToolCount()`：遍历 `ToolItemManager.GetAllTools()`，取 `Type==Red && SavedData.IsUnlocked`，按 `tool.CountKey` 去重（升级线算 1，如弧爪→曲镰；丝弹三选一），排除 `Extractor`/`Silk Snare`。**用 `SavedData.IsUnlocked` 而不是 `IsUnlockedNotHidden`**，所以被升级替换隐藏起来的弧爪本体仍然计入。
+
+### 3. 生质液瓶 +3 蓝血 `LifebloodSyringeService`（新文件）
+
+- 生质液腺 = `PlayerData.HasLifebloodSyringeGland`；生质液瓶内部名 `Lifeblood Syringe`（`ToolItemStatesLiquid`，红色，在随机池里）。
+- 生质液瓶的 `Heal` 状态用 `SendEventToRegister` 发 `ADD BLUE HEALTH`；`Blue Health Control` FSM（在 GameObject `Health` 上，`coremanagers_assets__gamecameras.bundle`，path_id `-1550123635733692519`）的 `Add Blue Health` 状态做 `healthBlue += 1` 并创建 1 个 `Blue HP Prefab`。
+- 补丁在 `SendEventToRegister.OnEnter` postfix：事件=`ADD BLUE HEALTH`、`Fsm.ActiveStateName == "Heal"`、`RandomToolsActive` 且拥有生质液腺时，把 `_extraAddsRemaining = 2` 入队；`LifebloodSyringeService.Tick()` 每帧检查 `Blue Health Control` FSM 是否回 `Idle`，回就再发一次 `ADD BLUE HEALTH`，连发 2 次 → 原版一共建 3 个面具、`healthBlue = 3`。**完全复用原版流程，不自己写计数、不发 `UPDATE BLUE HEALTH`。**
+- **坑（已踩过）**：`UPDATE BLUE HEALTH` 不是重建蓝血画面的事件，而是“清蓝血”——它触发 `HeroController.UpdateBlueHealth()`（`healthBlue = 0`）。第一版就是发它导致 +3 被立刻清 0。以后想重建蓝血画面，只能让原版 `ADD BLUE HEALTH` 自己跑，不要发 `UPDATE BLUE HEALTH`、也不要直接写 `PlayerData.healthBlue`（写了画面不会建面具）。
+- `Blue Health Control` FSM 用 `Resources.FindObjectsOfTypeAll<PlayMakerFSM>()` 按 `Fsm.Name` 找并缓存（`HudFrameService` 同款做法）。
+- 不要求生质液瓶有剩余弹药：随机池对红色工具统一镜像共享次数（`SetAmount(pick, _usesLeft)`），所以它总是可投；每次施放无冷却。新类 `LifebloodSyringeService` + `LifebloodSyringePatch`。
+
+### 4. 任务工具豁免替换 `RandomToolService.IsVanillaEquipTool`
+
+- `GetBoundAttackToolPatch.Postfix` 在替换前判断 `__result`（当前装备的工具）是否为 `Extractor` / `Silk Snare`；是则直接 return，走原版。它们本就不在 `RedPool`，所以共享次数 / 连投 / 免费补充都不会碰它们。
+- `RandomIconService.For` 对这两个工具返回 null，HUD 显示原版图标。
+- 目的：储液针管是任务道具，被随机替换就无法完成医生任务线；陷阱设置器同类型，一并豁免。
+
+### 5. 触发入口
+
+- 框架 Tick（`RandomCrestRunner.Update`）新增 `SpellSilkRefund.Tick()` 与 `LifebloodSyringeService.Tick()`。
+- `RandomCrestModPlugin` 新增 `EnableSpellSilkRefund = true`，并注册 `SpellSilkRefundPatch` / `LifebloodSyringePatch`。
+
 ## 六、HUD / 存档界面美术
 
 - 资源（`Assets/`，内嵌 DLL）：
@@ -252,6 +298,7 @@
   - `crest_hud_frame.png` — 左上角缚丝丝轴外框（用户绘制，后期 gamma≈1.35 提亮），**ppu 420**；
   - `crest_save_spool.png` — 存档选择界面 spool（226×173）；
   - `crest_random_tool.png` — HUD 工具固定图标（红色，"兵械库"成就图标再上色 + 圆形柔边遮罩），**ppu 390**；
+  - `crest_random_tool_poison.png` — 同上图标的紫色版（花芯囊中毒时），由红版整体 hue-rotate −0.23 生成，**ppu 390**；
   - `crest_random_spell.png` — HUD 法术固定图标（白色，"千丝万缕"成就图标），**ppu 420**。
 - `HudFrameService`：**叠加方案**——不碰游戏 tk2d 网格/材质，而是在 `Bind Orb` 下挂一个自己的 MeshFilter/MeshRenderer：
   - 装备纷乱时隐藏游戏外框渲染器 + 显示我们的叠加；否则反过来；
@@ -269,7 +316,7 @@
   - 当前 `crest_glow.png` 由 `crest_silhouette.png` 生成（core 缩到 193×195、放进 255×261 画布、高斯模糊半径 15）——想换形状就重跑同款流程。
 - 内嵌贴图统一用 `SpriteMeshType.FullRect`（`LoadEmbeddedSprite`）：**Tight 网格会裁掉 Glow 这类软边 alpha**，必须保持 FullRect。
 - 技能获取弹窗（`SkillGetMsg`，预制体 `Silk_Skill_Get_Prompt`）只在 `Setup` 里写 `Crest`/`Crest_Glow`，其 `Skill Group/Crest/Pivot/Crest_Silhouette` 预制体里烘焙的是猎手剪影且**脚本从不更新** → 获得法术时会看到猎手剪影叠在纷乱图标上。`SkillGetMsgPatches.SkillGetMsgCrestSilhouettePatch` 在装备纷乱时把它换成 `crest.CrestSilhouette`；其它纹章不碰。
-- 随机图标：`RandomIconPatches.ToolHudIconSpritePatch`（换 sprite）+ `RadialHudIconColourPatch`（强制白 tint）。
+- 随机图标：`RandomIconPatches.ToolHudIconSpritePatch`（按 `RandomIconService.For` 换 sprite；红 binding 在 `tool.PoisonDamageTicks > 0 && Gameplay.PoisonPouchTool.IsEquippedHud` 时用 `PoisonToolIcon` 紫色版）+ `RandomIconPatches.ToolHudIconColourPatch`（强制白、并关掉 `RECOLOUR`/`CAN_HUESHIFT`，防止原版中毒/电枢着色器把专属图标去色）。**注意补丁点在 `ToolHudIcon.SetIconColour` 覆写上，不是 `RadialHudIcon` 基类**——基类在所有关键字开关之前调用，放基类会被原版随后重新开启关键字而失效。
 - 存档 spool：`SaveProfileCrestPatch` 改 `SaveProfileHealthBar.ShowHealth`（我们的 id 解析不了它的私有枚举）。
 
 ## 七、其它
@@ -310,6 +357,8 @@
 - [x] 十字绣真格挡退还本次灵丝（`ParrySilkRefund`，`EnableParrySilkRefund`）；自动释放不退；去掉本体白闪与音效，只用丝轴补丝动画。
 - [x] **实测格挡退丝（0.1.9）**：真格挡退 3 / 带蚤母卵 2；自动释放不退；满丝不溢出；连续格挡都生效；换纹章后原版。
 - [x] **实测上述美术修复**：装备纷乱后 ①在铁匠铺切换/确认纹章时爆光是纷乱形状；②获得法术时弹窗里是纷乱剪影而不是猎手剪影。
+- [x] **实测花芯囊中毒图标（本版）**：装备纷乱 + 花芯囊 + 可中毒红工具时，HUD 随机工具图标变专属紫色
+  （`crest_random_tool_poison.png`，hue −0.18）；卸下花芯囊恢复红色；不再出现之前的灰色。
 - [x] **实测电枢球（Voltvessels）标枪形态**：随机掷到 `offState`（FSM 事件 `LIGHTNING ROD`）时能正常
   出招、共享次数正常扣（0.1.9 通过；`RollToggleState` 保留双形态）。
 - [x] **实测嘲讽三形态**：普通 / 野兽吼叫 / 投掷环都能正确触发；野兽形态独占 `TauntSlash` 动作随声音

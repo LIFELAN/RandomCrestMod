@@ -66,6 +66,13 @@ internal static class GetBoundAttackToolPatch
             return;
         }
 
+        // Quest tools (Snare Setter / Extractor) keep their vanilla behaviour when equipped - do not
+        // swap them out, so their quests / special usage still work on the Chaos crest.
+        if (RandomToolService.IsVanillaEquipTool(__result))
+        {
+            return;
+        }
+
         ToolItem? pick = null;
         if (RandomToolService.RandomToolsActive && __result.Type == ToolItemType.Red)
         {

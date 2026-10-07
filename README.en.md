@@ -58,19 +58,23 @@ like vanilla for every other crest.
 | Random bind | Every bind uses a random crest's bind effect. |
 | Random tools | Every thrown tool becomes a random Red tool from the whole game — obtained or not. |
 | Tool barrage | One press throws several times: **+1** throw per Tool Pouch upgrade, **+1** more with Quick Sling; every chained throw re-rolls a fresh random tool. |
-| Random spells | Every cast silk skill becomes one of the six silk skills at random. |
+| Random spells | Every cast silk skill becomes one of the six silk skills at random. Every skill except the Cross Stitch has a **3% per collected silk skill** chance to **immediately refund** the silk its cast spent (same spool animation as the Cross Stitch); the Cross Stitch keeps its guaranteed real-parry refund. |
 | Random taunt | Pressing the taunt button (R3 / V) plays a random one of the three vanilla flavours: standard **80%**, Beast crest battle-cry **14%**, or the Shakra Ring toss **6%**. The Beast flavour also switches in the Beast crest's unique taunt visual. |
 | Taunt offering | A taunt that plays fully on the ground while Chaos is equipped spends 80 shell shards and grants rosaries based on the rolled flavour: standard 0-50, Beast 60, Shakra Ring 80. With fewer than 80 shards the taunt stays purely cosmetic. |
 | Cross Stitch | While Chaos is equipped the Cross Stitch counters on its own (the stance flows straight into the counter even when not struck). Only the automatic counter removes the hit spark and adds the pink-white highlight; a real parry keeps the vanilla spark. Other crests keep the vanilla parry. |
-| Tool budget | Tools share a base **16 uses per bench** (configurable), **+25%** per Tool Pouch upgrade, and refill for **free**; each Tool Pouch upgrade also gives an **8%** chance (capped at 40%) that a throw costs no use. |
+| Tool budget | Tools share a base **16 uses per bench** (configurable), **+25%** per Tool Pouch upgrade, and refill for **free**; every **collected** red tool gives a **+2%** chance (the Curvesickle upgrade adds another **+2%**, capped at 40%) that a throw costs no use. The Snare Setter and the Extractor never count. |
+| Plasmium Phial | When the random tool is the **Plasmium Phial** and the player owns the **Plasmium Gland**, its blue health is raised from **1 to 3** (no cooldown). |
 | Custom HUD | A custom bind-orb frame, fixed "random" tool / spell HUD icons, and a custom crest spool on the save-selection screen. |
 
 ### Special tool handling
 
-- `Extractor` (**Needle Phial**), `Silk Snare` (**Snare Setter**), `Rosary Cannon` and `Screw Attack`
-  (**Delver's Drill**) are excluded from the random tool pool — the first two do not work when thrown
-  at random, the Rosary Cannon's usage differs and it misfires under rapid tool use, and the
-  Delver's Drill dives downwards so it does not work when thrown at random.
+- `Extractor` (**Needle Phial / 储液针管**), `Silk Snare` (**Snare Setter / 陷阱设置器**),
+  `Rosary Cannon` and `Screw Attack` (**Delver's Drill**) are excluded from the random tool pool —
+  the first two do not work when thrown at random, the Rosary Cannon's usage differs and it misfires
+  under rapid tool use, and the Delver's Drill dives downwards so it does not work when thrown at random.
+  The **Extractor** and the **Snare Setter** additionally keep their vanilla behaviour when equipped
+  (they are not swapped for a random tool), so their quests / special usage still work and their own
+  HUD icon is shown.
 - `Lightning Rod` (**Voltvessels**) rolls randomly between its thrown **bola** and staked **spear**
   forms on every pick; the player's own form setting is restored afterwards.
 - `Rosary Cannon` is kept **fully charged**, so it always uses its charged form.
@@ -86,10 +90,11 @@ Config file: `BepInEx/config/io.github.lifelan.randomcrestmod.cfg`
 | `Tools/ToolUsesPerBench` | `16` | Base number of uses every tool is refilled to at a bench (each Tool Pouch upgrade adds 25%). |
 
 > Everything else is **hardcoded** (tuned during development): random attacks / binds / tools /
-> spells / taunt / Cross Stitch are always on and only apply to the Chaos crest; the excluded tools
-> are fixed to Needle Phial, Snare Setter, Rosary Cannon and Delver's Drill; Voltvessels rolls both
-> of its forms; Rosary Cannon is kept fully charged; the custom HUD frame, save spool and random
-> icons are always on, and the HUD frame offset/scale are fixed too.
+> spells / taunt / Cross Stitch / spell silk refund / Plasmium Phial boost are always on and only
+> apply to the Chaos crest; the excluded tools are fixed to Extractor, Snare Setter, Rosary Cannon
+> and Delver's Drill; Voltvessels rolls both of its forms; Rosary Cannon is kept fully charged; the
+> custom HUD frame, save spool and random icons are always on, and the HUD frame offset/scale are
+> fixed too.
 
 ---
 
