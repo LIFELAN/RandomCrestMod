@@ -5,7 +5,7 @@
 
 ## 零、版本 & 状态（每次开工先看这里）
 
-> **当前版本 v0.2.1（本轮改动，待发布）**：在 v0.2.0 基础上：①蓝血 HUD 染色修复 + 更换高清 HUD 外框（对齐原版 cloakless 盘）；②所有红工具**始终**进随机池（`AllToolsRandom` 配置移除，`Extractor` 装备时仍豁免、`Silk Snare` 改为遵循随机）；③念珠炮始终充能 + 长按连发（`IsToolEquippedPatch`）；④符文之怒改动整体退回（删除 `RuneRageRadiusService`）。详情见“五之六”；版本号 `Directory.Build.props` / `thunderstore.toml` 均为 `0.2.1`。
+> **当前版本 v0.2.1（已发布 Thunderstore + GitHub Release / tag `v0.2.1`）**：在 v0.2.0 基础上：①蓝血 HUD 染色修复 + 更换高清 HUD 外框（对齐原版 cloakless 盘）；②所有红工具**始终**进随机池（`AllToolsRandom` 配置移除，`Extractor` 装备时仍豁免、`Silk Snare` 改为遵循随机）；③念珠炮始终充能 + 长按连发（`IsToolEquippedPatch`）；④符文之怒改动整体退回（删除 `RuneRageRadiusService`）。详情见“五之六”；版本号 `Directory.Build.props` / `thunderstore.toml` 均为 `0.2.1`。
 >
 > **v0.2.0（已发布 Thunderstore + GitHub Release / tag `v0.2.0`）**：在 v0.1.9 基础上新增“收集奖励”四件套，全部只在装备纷乱时生效，均已实测通过：
 > 1. 法术概率退丝 `SpellSilkRefund`（详见“五之五”）：除十字绣外每次施放首个扣丝 `3%×已获得法术` 立即退丝；十字绣照旧真格挡必退。
