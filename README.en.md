@@ -87,16 +87,13 @@ Config file: `BepInEx/config/io.github.lifelan.randomcrestmod.cfg`
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `Tools/ToolUsesPerBench` | `16` | Base number of uses every tool is refilled to at a bench (each Tool Pouch upgrade adds 25%). |
-| `Hud/FrameOffsetX` | `-0.84` | Horizontal offset of the Chaos HUD frame, in world units. Internal tuning; change in `0.01` steps. Larger values move the frame right. |
-| `Hud/FrameOffsetY` | `0.16` | Vertical offset of the Chaos HUD frame, in world units. Internal tuning; change in `0.01` steps. Larger values move the frame up. |
-| `Hud/FrameScale` | `0.9125` | Scale of the Chaos HUD frame. Internal tuning; change in `0.01` steps. The default makes the frame's disk match the vanilla spool disk. |
 
 > Everything else is **hardcoded** (tuned during development): random attacks / binds / tools /
 > spells / taunt / Cross Stitch / spell silk refund / Plasmium Phial boost are always on and only
 > apply to the Chaos crest; every red tool is always in the random pool (the Needle Phial keeps its
 > vanilla behaviour while equipped); Voltvessels rolls both of its forms; Rosary Cannon is kept
 > fully charged and fires continuously while held; the custom HUD frame, save spool and random
-> icons are always on, and the HUD frame spool-centre reference is fixed too.
+> icons are always on, and the HUD frame offset/scale are fixed too.
 
 ---
 

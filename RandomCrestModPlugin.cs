@@ -17,18 +17,6 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
     /// upgrade increases it by 25% (rounded). Refills are free.</summary>
     internal static ConfigEntry<int> ToolUsesPerBench = null!;
 
-    /// <summary>Horizontal offset (world units) of the custom HUD frame's spool centre. Internal
-    /// tuning only - nudge in 0.01 steps. Larger values move the frame right.</summary>
-    internal static ConfigEntry<float> HudFrameOffsetX = null!;
-
-    /// <summary>Vertical offset (world units) of the custom HUD frame's spool centre. Internal
-    /// tuning only - nudge in 0.01 steps. Larger values move the frame up.</summary>
-    internal static ConfigEntry<float> HudFrameOffsetY = null!;
-
-    /// <summary>Scale of the custom HUD frame. Internal tuning only; the default makes the frame's
-    /// disk match the vanilla cloakless spool disk.</summary>
-    internal static ConfigEntry<float> HudFrameScale = null!;
-
     // ---- Fixed values (previously configurable, now baked in) ----
 
     internal static readonly bool EnableRandomAttacks = true;
@@ -87,6 +75,12 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 
     internal static readonly bool DebugLogging = false;
 
+    internal static readonly float HudFrameOffsetX = -0.85f;
+
+    internal static readonly float HudFrameOffsetY = 0.16f;
+
+    internal static readonly float HudFrameScale = 0.9125f;
+
     private Harmony _harmony = null!;
 
     private void Awake()
@@ -99,27 +93,6 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
             16,
             "Base tool capacity shared by every tool when resting at a bench. Each Tool Pouch upgrade "
             + "increases it by 25% (rounded to the nearest use). Refills are free.");
-
-        HudFrameOffsetX = Config.Bind(
-            "Hud",
-            "FrameOffsetX",
-            -0.84f,
-            "Horizontal offset of the Chaos HUD frame, in world units. Internal tuning only; change "
-            + "in 0.01 steps. Larger values move the frame right.");
-
-        HudFrameOffsetY = Config.Bind(
-            "Hud",
-            "FrameOffsetY",
-            0.16f,
-            "Vertical offset of the Chaos HUD frame, in world units. Internal tuning only; change "
-            + "in 0.01 steps. Larger values move the frame up.");
-
-        HudFrameScale = Config.Bind(
-            "Hud",
-            "FrameScale",
-            0.9125f,
-            "Scale of the Chaos HUD frame. Internal tuning only; change in 0.01 steps. The default "
-            + "makes the frame's disk match the vanilla spool disk.");
 
         _harmony = new Harmony(Info.Metadata.GUID);
         _harmony.PatchAll(typeof(RandomAttackPatches));
