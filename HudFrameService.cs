@@ -272,7 +272,7 @@ internal static class HudFrameService
             }
         }
 
-        var scale = RandomCrestModPlugin.HudFrameScale;
+        var scale = RandomCrestModPlugin.HudFrameScale.Value;
         var ox = RandomCrestModPlugin.HudFrameOffsetX.Value;
         var oy = RandomCrestModPlugin.HudFrameOffsetY.Value;
 
