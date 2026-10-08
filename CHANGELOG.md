@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.2.2
+
+- The random bind can now resolve to the Cursed crest's **refused bind** (诅咒缚丝). It is a
+  fixed **5%** chance and runs through the Bind FSM's
+  own cursed branch, so every normal gate (full silk, `CanBind`, ground / sprint / cutscene) still
+  applies. The refused bind takes **all** of the hero's silk, and each silk chunk taken now pays
+  back **10 rosaries**.
+- **Tool barrage is now gated on the Hornet Statuette** (大黄蜂雕像): without the statuette a throw
+  is exactly vanilla (single; Quick Sling keeps its vanilla double throw). While it is held the
+  old rule applies — **+1** throw per Tool Pouch upgrade and **+1** more with Quick Sling.
+- Two new ways to obtain the Hornet Statuette besides the vanilla Fixer quest:
+  - a **one-time world pickup in Bellhart (钟心镇)**, in the map-seller area by the entrance. It is
+    taken once and gone for good (persisted per save), and is **not** gated on the Chaos crest.
+  - while Chaos is equipped, dealing real damage with the **Needle Phial** (储液针管) awards **one**
+    statuette **per use** (several damage instances in a single use still count once; more uses
+    stack, with no cap).
+- The Cross Stitch auto counter now only **lands its follow-up damage 50% of the time**. The
+  retreat / highlight always plays; a miss just recovers afterwards. A real parry is unchanged and
+  always counters.
+- Each **Tool Pouch upgrade** made **while Chaos is equipped** now immediately grants **800 shell
+  shards** (clamped by the game's shard cap). Upgrades made on other crests do not count.
+- **Rune Rage** (符文之怒 / Silk Bomb) now deals **double damage** while Chaos is equipped. The extra
+  multiplier is re-applied after the blast's own `HeroShamanRuneEffect` refresh, so the vanilla
+  Zap-rune bonus still stacks on top.
+
 ## 0.2.1
 
 - The Chaos crest's HUD frame now turns blue in the blue-health (lifeblood) state, matching every

@@ -23,6 +23,14 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 
     internal static readonly bool EnableRandomBind = true;
 
+    /// <summary>When true, a random bind can resolve to the Cursed crest's refused bind (诅咒缚丝).
+    /// The outcome is answered through the Bind FSM's own "Do Bind" branch, so the normal bind
+    /// gating still applies.</summary>
+    internal static readonly bool EnableCursedBind = true;
+
+    /// <summary>Chance (0-1) that a random bind resolves to the Cursed crest's refused bind (诅咒缚丝).</summary>
+    internal static readonly float CursedBindChance = 0.05f;
+
     internal static readonly bool EnableRandomTools = true;
 
     internal static readonly bool EnableRandomSpells = true;
@@ -96,6 +104,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 
         _harmony = new Harmony(Info.Metadata.GUID);
         _harmony.PatchAll(typeof(RandomAttackPatches));
+        _harmony.PatchAll(typeof(CursedBindPatches));
         _harmony.PatchAll(typeof(RandomTauntPatches));
         _harmony.PatchAll(typeof(ParryAutoCounterPatch));
         _harmony.PatchAll(typeof(ParryTriggerPatches));
@@ -103,6 +112,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
         _harmony.PatchAll(typeof(ParrySilkRefundPatch));
         _harmony.PatchAll(typeof(SpellSilkRefundPatch));
         _harmony.PatchAll(typeof(LifebloodSyringePatch));
+        _harmony.PatchAll(typeof(RuneRageDamagePatch));
         _harmony.PatchAll(typeof(HeroHighlightPatch));
         _harmony.PatchAll(typeof(ReaperPayoutPatch));
         _harmony.PatchAll(typeof(AnimationFallbackPatches));
@@ -123,6 +133,8 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
         _harmony.PatchAll(typeof(ToolHudIconSpritePatch));
         _harmony.PatchAll(typeof(ToolHudIconColourPatch));
         _harmony.PatchAll(typeof(SkillGetMsgCrestSilhouettePatch));
+        _harmony.PatchAll(typeof(ExtractorRewardPatch));
+        _harmony.PatchAll(typeof(CursedBindRewardPatch));
 
         // Optional custom crest art (embedded PNGs). Drop crest_icon.png / crest_silhouette.png /
         // crest_glow.png into Assets/ to use them.
@@ -214,6 +226,12 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
         }
     }
 
+    /// <summary>Always-on info log (not gated by <see cref="DebugLogging"/>).</summary>
+    internal static void LogInfo(string message)
+    {
+        Instance.Logger.LogInfo(message);
+    }
+
     internal static void LogError(string message)
     {
         Instance.Logger.LogError(message);
@@ -228,11 +246,14 @@ internal sealed class RandomCrestRunner : MonoBehaviour
     {
         RandomAttackService.Tick();
         RandomBindService.Tick();
+        CursedBindService.Tick();
         RandomToolService.Tick();
         RandomTauntService.Tick();
         SpellSilkRefund.Tick();
         LifebloodSyringeService.Tick();
         ParryAutoCounterService.Tick();
+        ToolPouchShardBonus.Tick();
+        StatuePickupService.Tick();
         CrestService.EnsureCreated();
         CrestService.EnsureUnlocked();
     }

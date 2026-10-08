@@ -21,6 +21,9 @@ internal static class CrestPatches
 
         // Drop any taunt roll / Beast crest root we were holding.
         RandomTauntService.Reset();
+
+        // Drop any pending cursed-bind roll.
+        CursedBindService.Reset();
     }
 
     /// <summary>Scene load / respawn: the HUD and crest roots can be rebuilt here too.</summary>
@@ -30,6 +33,7 @@ internal static class CrestPatches
     {
         HudFrameService.Reset();
         RandomTauntService.Reset();
+        CursedBindService.Reset();
     }
 
     /// <summary>

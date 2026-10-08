@@ -5,6 +5,25 @@
 
 ## 零、版本 & 状态（每次开工先看这里）
 
+> **⚠️ 进行中（未发布，用户正在走全流程实测）：诅咒缚丝 + 大黄蜂雕像多投开关 + 十字绣 50% + 储液针管奖励。**
+> - 诅咒缚丝：固定 **5%**（写死，不可配置），走 Bind FSM 自己的
+>   `Do Bind` → `IsAnyCursed` 分支。
+>   **方向 2 已定案并实现**：扣除全部灵丝，每扣 1 格补偿 **10 枚念珠**
+>   （`CursedBindRewardPatch`，patch `HeroController.TakeSilk(int, SilkTakeSource)`，`source == Curse`
+>   且 `CursedBindService.Active`）。方向 1（不扣丝）未采纳（见“五之七”）。
+> - 多投开关：`RandomToolService.StatueHeld`（`PlayerData.Collectables.GetData("Fixer Idol").Amount > 0`），
+>   `ExtraThrowsPerPress` 无雕像返回 0，`Tick` 链清理同时看雕像。
+> - 十字绣：`ParryAutoCounterService` 自动反击进入 `Parry Clash` 时掷固定 **50%**；失败把
+>   `Parry Clash` 的 `FINISHED` 目标改成 `Parry Recover`（跳过后面的交叉斩伤害），高光照常。
+> - 符文之怒：装备纷乱时丝弹伤害**翻倍**（`RuneRageDamagePatch.cs`，patch `HeroShamanRuneEffect.Refresh`
+>   postfix，只认 `Weaver Bomb Blast` / `... Zap` 两个弹体；详见“五之九”）。
+> - 雕像两条新获取：①`StatuePickupService` 在 `Belltown` (97.39893, 22.56768) 生成一次性拾取
+>   （`SceneData.PersistentBools` 持久化，不检测纹章）；②`ExtractorRewardPatch` 储液针管
+>   `AttackType.ExtractMoss` 实质伤害每次使用 +1（`EXTRACTOR` 事件重置每次使用）；主动装备储液针管不奖励。
+> - 工具袋升级补碎片：`ToolPouchShardBonus` 每帧轮询 `ToolPouchUpgrades`，**装备纷乱时**每次升级 `+800` 碎片
+>   （`CurrencyManager.AddShards`，受游戏上限封顶）；其它纹章升级不补。
+> - 细节见“**五之七**”“**五之八**”。
+
 > **当前版本 v0.2.1（已发布 Thunderstore + GitHub Release / tag `v0.2.1`）**：在 v0.2.0 基础上：①蓝血 HUD 染色修复 + 更换高清 HUD 外框（对齐原版 cloakless 盘）；②所有红工具**始终**进随机池（`AllToolsRandom` 配置移除，`Extractor` 装备时仍豁免、`Silk Snare` 改为遵循随机）；③念珠炮始终充能 + 长按连发（`IsToolEquippedPatch`）；④符文之怒改动整体退回（删除 `RuneRageRadiusService`）。详情见“五之六”；版本号 `Directory.Build.props` / `thunderstore.toml` 均为 `0.2.1`。
 >
 > **v0.2.0（已发布 Thunderstore + GitHub Release / tag `v0.2.0`）**：在 v0.1.9 基础上新增“收集奖励”四件套，全部只在装备纷乱时生效，均已实测通过：
@@ -310,7 +329,180 @@ a0c6fff Add HUD frame offset config (internal tuning)
 - **念珠炮始终充能 + 长按连发**：`Rosary Cannon` 是 `ToolItemLerpStates` + `isCustomUsage`，弹药走自己的 `SavedData.AmountLeft`；`EnsurePools` 缓存 `_rosaryCannon`，`Tick()` 每帧 `KeepRosaryCannonCharged()` 把它同步到 `UsesPerBench`。另外，`Shoot Loop` 的 `GetToolEquipInfo` 的 `Tool` 参数是**直接引用念珠炮本体**（FSM 模板里 `value=PPtr(...,-329254137206601981)`），而随机工具并未真正装备，`IsEquipped` 为 false 会让循环一发就结束；新增 `IsToolEquippedPatch`（`ToolItemManager.IsToolEquipped` postfix）在 `readSource==Active && IsSpoofed(tool)` 时报 true（HUD 读取不动），所以按住可一直发。`Shoot` 的 `CustomToolUsage` 也是同一个 `Tool` 引用。
 - 注意：四件里 `Silk Snare` / `Rosary Cannon` / `Screw Attack` 都是 FSM 事件工具（`ThrowPrefab == null`），不会进连投链（`AfterThrow` 的 `!_throwConsumed` 分支会结束链），属预期。
 
-（原「符文之怒只加半径」改动已整体退回，`RuneRageRadiusService.cs` 已删除。）
+（原「符文之怒只加半径」改动已整体退回；现改为**伤害翻倍**，见“五之九”。）
+
+## 五之七、诅咒缚丝（已实现，未发布，用户实测中）
+
+> 目标：给「纷乱」的随机缚丝补回**诅咒缚丝（被拒绝的缚丝）**这个结果，同时不复现旧版那套崩溃。
+
+### 1. 现状（已实现、已部署、已验证「基本实现」）
+
+- **概率固定**：`RandomCrestModPlugin.CursedBindChance = 0.05f`（写死，不可配置）。用户按 5% 全流程实测。
+- **新增文件**：
+  - `CursedBindService.cs` — 掷点、`Arm/Clear/Reset/Tick`、`ShouldOverride`、`ResolveCursedEvent`。
+  - `CursedBindPatches.cs` — 只补一个点：`PlayerDataVariableTest.OnEnter` 的 prefix。
+- **修改文件**（各几行）：
+  - `RandomBindService.cs`：`BeginAttempt` 里 `CursedBindService.Arm(CursedBindService.Roll())`；`End()` 里 `Clear()`。
+  - `RandomCrestModPlugin.cs`：`EnableCursedBind = true`、`CursedBindChance = 0.05f` 固定值、注册 `CursedBindPatches`、框架 Tick 加 `CursedBindService.Tick()`、新增常开 `LogInfo`。
+  - `CrestPatches.cs`：`SetLoadedGameData` / `SceneInit` 里 `CursedBindService.Reset()`。
+- **日志**（常开，不受 `DebugLogging` 影响）：`[CursedBind] cursed bind rolled.` / `[CursedBind] Diverted the bind into the Cursed branch.`
+
+### 2. 机制（关键事实，别再踩）
+
+- Bind FSM 的**运行时名字是 `Bind`**（在 `heroloading_assets_all.bundle`，path_id `-8018744589059483442`），但它的**模板名是 `Spell Control`**（`fsmtemplates_assets_shared.bundle`，path_id `-3690107984273115179`）。`FSMUtility.LocateFSM(hero.gameObject, "Bind")` 按运行时名匹配，所以 `IsInState` 用 `fsm.Name == "Bind"` 是对的。
+- `Do Bind` 状态最后一个动作是 `PlayerDataVariableTest(VariableName="IsAnyCursed", ExpectedValue=true)`；其 `IsExpectedEvent` 序列化就是字符串 **`CURSED`**（`byteData` 尾部 `67 85 82 83 69 68`），`IsNotExpectedEvent` 为空。转场 `CURSED → Cursed Bind Start`，`FINISHED → Set Bind Anims`。
+- **不要再用 `FORCE CURSED BIND` 全局跳转**（旧版 `ba96154` 删除）：它直接进 `Cursed Bind Start`，绕过 `Can Bind?` 的丝量 / `CanBind()` / 落地 / 冲刺 / 过场判断 → 旧版三大崩溃。新方案只覆盖 `Do Bind` 的那一个测试，前面所有门照常走。
+- **不要全局 spoof `PlayerData.IsAnyCursed`**：它会 `CurrentSilkMaxBasic` 里 `if (IsAnyCursed) return 3;`，把丝线上限压到 3、丝线外观/死亡茧全变。只覆盖那一个 FSM 动作。
+- 诅咒动画 clip 由现有 `AnimationFallbackPatches`（`HeroAnimationController.GetClip` postfix → `RandomCrestAnimationLibrary` 合并库）兜底；少数 `ActivateGameObject` 目标可能挂诅咒/女巫 ActiveRoot 下，目前随机装 config，未特意开那个 root（实测通过说明没问题）。
+
+### 3. 诅咒路径扣丝真相（方向 1 的依据）
+
+路径：`Do Bind ──CURSED──> Cursed Bind Start → Start pt2 → Mid → Cursed Damage → Witch Binding? → Remove Silk? → Cancel All / Cursed Bind End`。
+
+- **`Cursed Damage`（主扣丝点）**：
+  - `GetSilk(StoreAmount="Current Silk Amount")` → `TakeSilkV2(Amount="Current Silk Amount")` = **扣光当前全部灵丝**（用户观察到的「扣除全部灵丝」）。
+  - `CallMethodProper(HeroController.DamageSelf, 1)` = **1 格 ENEMY 类型自伤**（`DamageSelf` → `TakeDamage(..., HazardType.ENEMY)`）。
+  - `SendEventToRegister("SILK CURSED UPDATE")`；`HeroController.UpdateSilkCursed()` 会 `ResetSilkRegen` + 发同名事件（丝轴 HUD 变诅咒外观）。
+- **`Remove Silk?`（次扣丝点）**：`TakeSilk(amount=<变量>)` + `CheckIfToolEquipped`（备用缚丝道具 Reserve Bind）。原版因 #1 已清空丝，这里扣到 0；**若只跳过 #1、不动这里，就会扣掉正常缚丝费**。
+- **`Can Bind?`**：`PlayerdataIntCompare(silk, …)`，`IsAnyCursed` 经 `ConvertBoolToInt` 影响比较值。我们**不覆盖** `Can Bind?`，所以进入诅咒缚丝前走的是**普通满丝判定**。
+
+### 4. 方向 1（诅咒缚丝不扣灵丝）— 可行性 & 风险（用户已听，待拍板）
+
+- **可行**，两种做法：
+  - **方案 A（推荐，精准）**：仿 `Do Bind`，用 `IsInState` 限定：`Cursed Damage` 的 `TakeSilkV2` 把 `Amount` 置 0（或跳过）；`Remove Silk?` 的 `TakeSilk` 把 `amount` 置 0（或跳过）。只影响诅咒路径。
+  - **方案 B（广谱，旧写法）**：诅咒窗口内 prefix `HeroController.TakeSilk(int)` / `TakeSilk(int, SilkTakeSource)` 返回 false（= 已删除的 `ShouldSuppressSilk`）。一处覆盖两处扣丝，但会吞窗口内所有扣丝。
+- **风险**：
+  1. 「不扣丝」≠「无代价」：`DamageSelf(1)` 仍在。**需用户决定是否保留自伤**（作者建议保留）。
+  2. 满丝门槛仍在：不覆盖 `Can Bind?` 就不会低丝触发（低丝触发是另一个特性，风险更高，建议分开）。
+  3. `SILK CURSED UPDATE` 视觉 / `ResetSilkRegen` 仍会触发，可能短暂显示诅咒丝轴外观，需实测；不好看可连事件一起拦。
+  4. 方案 B 窗口风险：窗口内任何扣丝被吞，必须严格清理（死亡/切场景/被打断）；方案 A 无此问题。
+  5. 扣丝后分支依赖：从 dump 看 `Witch Binding?` / `Remove Silk?` / `Cancel All` 不读丝，风险低，全流程留意。
+- **待用户拍板两点**：① 是否保留 `DamageSelf(1)`；② 是否保留「必须满丝才能触发」门槛。确认后按方案 A 实现。
+
+### 5. 方向 2（扣光丝但给补偿）— 已采纳并实现
+
+- 实现文件：`CursedBindRewardPatch.cs`（新）。patch `HeroController.TakeSilk(int, SilkSpool.SilkTakeSource)`
+  的 **postfix**，只在 `source == SilkSpool.SilkTakeSource.Curse` 且
+  `RandomCrestModPlugin.EnableCursedBind` 且 `CursedBindService.Active` 时生效，给
+  `amount * 10` 枚念珠（`CurrencyManager.AddGeo`，HUD 计数器会动）。
+- **为什么是干净信号**：`Cursed Damage` 里 `GetSilk` 存 “Current Silk Amount”，
+  `TakeSilkV2` 调 `HeroController.TakeSilk(amount, Curse)`（`SilkTakeSource.Curse`），所以 hook 这个
+  重载拿到的 `amount` 就是实际扣除量。单参重载 `TakeSilk(int)` 走的是 `Normal`，与
+  `ParrySilkRefundPatch` 不冲突。
+- **只补偿模组自己掷出的诅咒缚丝**：`CursedBindService.Active` 只有随机缚丝 `Arm(cursed)` 时才为 true；
+  真正戴 Cursed 纹章的玩家（`OnlyOnRandomCrest` 下）不会触发。
+- **自伤 `DamageSelf(1)` 保留**：用户要求“扣除全部灵丝这点不动”；注意自伤也仍在。
+- 日志：`[CursedBind] refused bind took N silk -> +M rosaries.`
+- 待实测：命中一次诅咒缚丝后念珠增量是否 = 扣丝格数 × 10。
+
+### 6. 测试清单（用户正在走）
+
+- 诅咒序列能否正常播 / 有无卡死；丝线上限是否照常（不应变 3）；结束后能否正常操作。
+- 滑步 / 空中 / 满丝 / 被打断 / 切场景 / 死亡 各种时刻。
+- 日志两条是否成对出现（只有第一条 = `Do Bind` 没走到）。
+
+### 7. 回退（如需）
+
+```sh
+cd E:/Agent/Pi/RandomCrestMod
+git checkout -- CrestPatches.cs RandomBindService.cs RandomCrestModPlugin.cs
+rm CursedBindPatches.cs CursedBindService.cs
+dotnet build -c Release
+```
+（cfg 里 `[Bind]` 段留着不影响其它功能。）
+
+## 五之八、大黄蜂雕像多投开关 + 十字绣 50% + 储液针管奖励（本轮，未发布）
+
+### 1. 大黄蜂雕像 = 多投开关
+
+- 物品是游戏原版 `CollectableItemBasic`，资产名 **`Fixer Idol`**（显示键 `INV_NAME_FIXER_IDOL` = 大黄蜂雕像），
+  存在 `PlayerData.instance.Collectables.GetData("Fixer Idol").Amount`。
+- **不唯一**：`customMaxAmount=0`、`useQuestForCap` 为空，`IsAtMax()` 回退到 `GlobalSettings.Gameplay.ConsumableItemCap = 20`；
+  自带 `useResponses`（消耗给 60 碎片）。所以**消耗雕像会关闭多投**，这是预期。
+- `RandomToolService.StatueHeld`（新属性）+ `ExtraThrowsPerPress` 开头 `if (!StatueHeld) return 0;`；
+  `Tick` 链清理条件加 `|| !StatueHeld`，让消耗后立即断链。
+- 口径（用户拍板的 B 方案）：**雕像=总开关；投掷次数=工具袋等级（+ Quick Sling）**；工具袋=0 时自然 0 次额外投掷。
+
+### 2. 世界拾取点（`StatuePickupService.cs`，新）
+
+- 场景 `Belltown`（钟心镇），坐标 **(97.39893, 22.56768)**（用户调试模组实测；地图师区域靠入口，最近对象 `Mapper Call Pole` ~1.36）。
+- 一次性：`SceneData.instance.PersistentBools`，key `("Belltown", "RandomCrestMod_HornetStatue")`；
+  `MarkTaken` 绑在 `CollectableItemPickup.OnPickup`。**不检测纹章**。
+- 生成：`Instantiate(Gameplay.CollectableItemPickupPrefab)` + `SetItem(CollectableItemManager.GetItemByName("Fixer Idol"))`，
+  反射私有 `spriteRenderer` 换雕像图标；每帧 `Tick` 重试直到成功；`!GameManager.CanPickupsExist()` 时跳过。
+- 注意：目标点 0.13~0.32 内有墙片，若实机嵌墙，把 `PickupPosition` 沿入口方向微调 0.3~0.5。
+
+### 3. 储液针管奖励（`ExtractorRewardPatch.cs`，新）
+
+- `HealthManager.TakeDamage(HitInstance)` postfix：`hitInstance.AttackType == AttackTypes.ExtractMoss`
+  （储液针管伤害对象 `Extractor Hit` 实测值为 14=ExtractMoss）+ `RandomToolService.RandomToolsActive`。
+- **按“一次使用”结算**：`PlayMakerFSM.SendEvent("EXTRACTOR")` prefix 重置 `_awardedThisUse`；
+  同一段 stab 的多段/多目标伤害只发 1 枚；多次使用累加，**无上限**。
+- 发放 `CollectableItemManager.AddItem(item, 1)` + `CollectableUIMsg.Spawn(item)`（不走 `Collect`，不会强开背包）。
+- 注意：**不要用 `EXTRACTOR DMG` 动画事件**当判据（空挥也触发）。
+- **主动装备的储液针管不奖励**：`ToolItemManager.IsToolEquipped("Extractor")`（字符串重载，直读真实
+  工具槽，不受随机 spoof / custom-use override 影响）为 true 时直接 return。储液针管是 `VanillaEquipTool`，
+  装备时不会被随机替换，所以“装备 = 玩家主动用”；只有随机抽到时 `IsToolEquipped` 才是 false。
+
+### 4. 十字绣 50%（`ParryAutoCounterService.cs` 改）
+
+- 进入 `Parry Clash` 且 `!ParryClashTrigger.Attacked`（自动路径）时，状态跃迁帧掷一次固定 **50%**（`AutoCounterSuccessChance`），存 `_autoCounterHits`。
+- `SetRedirect` 新增对 `Parry Clash` 的 `FINISHED` 转场：`redirect && !_autoCounterHits` → `Parry Recover`；否则恢复 `Change Facing?`。
+- **失败用 `Parry Recover`（不是 `Parry End`）**：`Parry End` 会调 `HeroController.CrossStitchInvuln()` 给无敌，白嫖不合适；`Parry Recover` 不送无敌、播收招动画。
+- 真格挡不掷骰，永远反击；HUD 高光仍绑在 `Parry Clash`，失败照常播。
+- 待实测：失败是否顺畅收招、真格挡不受影响、红蓝场景切换后转场复位。
+
+### 5. 注册 / 驱动
+
+- `RandomCrestModPlugin.Awake` 注册 `ExtractorRewardPatch`、`CursedBindRewardPatch`。
+- `RandomCrestRunner.Update` 加 `StatuePickupService.Tick()`、`ToolPouchShardBonus.Tick()`。
+
+### 6. 工具袋升级补碎片（`ToolPouchShardBonus.cs`，新）
+
+- 每帧轮询 `PlayerData.ToolPouchUpgrades`，增量 `gained * 800` 走 `CurrencyManager.AddShards`
+  （游戏自身按碎片上限封顶，上限本身每级工具袋 +25%）。用限量的 `AddShards` 而不是直写 `ShellShards`，
+  避免超上限污染 HUD。
+- `Reset()`（baseline=-1）挂在 `RandomToolSaveLoadedPatch`（`GameManager.SetLoadedGameData` 的 postfix，和
+  `RandomToolService.OnSaveLoaded()` 同位），避免读档把存档已有等级误发一次。
+- **仅装备纷乱时**：`CrestService.IsRandomCrestEquipped()` 为 false 时跳过（baseline 已在前面推进，
+  所以非纷乱期间的升级不会被补发）。
+
+## 五之九、符文之怒伤害翻倍（本轮，未发布）
+
+> 目标：装备纷乱时让随机到的**符文之怒**（Silk Bomb / 丝弹）伤害**提高 1 倍**（×2）。
+
+### 1. 弹体与伤害来源（tmpwork 反序列化确认）
+
+- `Silk Specials` FSM 的 `Sonar Cast Effects` / `Do Explosions` 会从全局池生成弹体；`Blast Prefab`
+  由 `Zap Variant` 决定：
+  - 普通弹 `Weaver Bomb Blast`（`herodynamic_assets_all.bundle`，path_id `-2546894702494613118`）；
+  - Zap 弹 `Weaver Bomb Blast Zap`（`localpoolprefabs_assets_shared.bundle`，path_id `-3940014353810078904`）。
+- 两者根节点都挂 `HeroShamanRuneEffect`（`damager` 字段指向子节点 `Blast/damager` 的 `DamageEnemies`）。
+  子 `damager` 的 `DamageEnemies`：`useNailDamage=1`、`damageDealt=15`、
+  `nailDamageMultiplier` 普通 `1` / Zap `2.1`。
+- 伤害最终值 = 钉伤 × `nailDamageMultiplier` × `DamageMultiplier`（`DamageEnemies.DoDamage` 内
+  `tempDamageStack.AddMultiplier(DamageMultiplier)`），所以**改 `DamageMultiplier` 只影响伤害，不影响击退**。
+- 原版 `HeroShamanRuneEffect.Refresh()` 会把 `damager.DamageMultiplier` 设为
+  `initialDamageMult × (SpellCrest 装备 ? SpellCrestRuneDamageMult : 1)`；纷乱是 Hunter 克隆，
+  所以 `SpellCrest.IsEquipped` 为 false，基值为 `initialDamageMult`。
+
+### 2. 实现（`RuneRageDamagePatch.cs`，新）
+
+- `[HarmonyPatch(typeof(HeroShamanRuneEffect), nameof(HeroShamanRuneEffect.Refresh))]` **postfix**：
+  `RandomToolService.RandomSpellsActive` 为真、且 `effect.gameObject.name` 以 `Weaver Bomb Blast`
+  开头时，`damager.DamageMultiplier *= 2`。
+- **为什么安全**：`Refresh()` 每次都用 `initialDamageMult` 赋值（绝对值），所以即使池化对象反复
+  `OnEnable` 调 `Refresh`，我们也只是把基值 ×2，不会连乘；不装备纷乱时 `Refresh` 会把它重置回基值，
+  不会泄漏到其它纹章。
+- **为什么按名字过滤**：`HeroShamanRuneEffect` 还被 Needle Throw、Silk Charge、Cross Slash、Parry 等
+  非符文之怒对象复用，不能整类都翻倍。`StartsWith` 兼容运行时 `(Clone)` 后缀，也覆盖 `... Zap`。
+- 仅乘 `DamageMultiplier`，不动 `nailDamageMultiplier`，所以 Zap 形态的 2.1 倍加成仍然保留（最终 ×4.2）。
+- `RandomCrestModPlugin.Awake` 注册 `RuneRageDamagePatch`。
+
+### 3. 测试重点
+
+- 纷乱上符文之怒命中伤害约为平时 **2 倍**；带 Zap 形态（若曾 equipped 对应工具）仍保留其额外倍率。
+- 换其它纹章放符文之怒，伤害与原版一致；纷乱卸下后不回弹、不残留。
 
 ## 六、HUD / 存档界面美术
 

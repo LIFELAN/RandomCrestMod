@@ -76,6 +76,11 @@ internal static class RandomBindService
         _attemptActive = true;
         _attemptStart = Time.time;
 
+        // A small chance this bind resolves to the Cursed crest's refused bind. The roll is answered
+        // later, inside the Bind FSM's own "Do Bind" state (see CursedBindService / CursedBindPatches),
+        // so the normal silk / CanBind / ground / sprint gating still applies.
+        CursedBindService.Arm(CursedBindService.Roll());
+
         // Also swaps the config, so crest-specific bind clips / roots are available.
         RandomAttackService.ApplyForBind(hero);
     }
@@ -83,6 +88,7 @@ internal static class RandomBindService
     private static void End()
     {
         _attemptActive = false;
+        CursedBindService.Clear();
 
         var hero = HeroController.instance;
         if (hero != null)

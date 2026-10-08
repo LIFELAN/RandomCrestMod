@@ -277,5 +277,6 @@ internal static class RandomToolSaveLoadedPatch
     private static void Postfix()
     {
         RandomToolService.OnSaveLoaded();
+        ToolPouchShardBonus.Reset();
     }
 }

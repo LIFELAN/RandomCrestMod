@@ -164,7 +164,8 @@ internal static class RandomToolService
         {
             var hero = HeroController.instance;
             var cs = hero != null ? hero.cState : null;
-            if (hero == null || cs == null || cs.dead || cs.hazardRespawning || cs.transitioning || _usesLeft <= 0)
+            if (hero == null || cs == null || cs.dead || cs.hazardRespawning || cs.transitioning
+                || _usesLeft <= 0 || !StatueHeld)
             {
                 EndChain(hero);
             }
@@ -365,15 +366,45 @@ internal static class RandomToolService
 
     internal static int UsesLeft => _usesLeft;
 
+    /// <summary>Name of the save's Hornet Statuette collectable (大黄蜂雕像 / "Fixer Idol").</summary>
+    private const string StatueItemName = "Fixer Idol";
+
     /// <summary>
-    /// Number of extra throws a single press should produce. Tool Pouch upgrades each grant one
-    /// extra throw; Quick Sling contributes its own extra throw as well (absorbed here rather than
-    /// left to the game's own queue, so both work together).
+    /// True while the save holds the Hornet Statuette. The statue is the on/off switch for the
+    /// multi-throw barrage: without it a throw is single, exactly like vanilla. The Tool Pouch
+    /// level still decides how many extra throws are granted when the statue is held.
+    /// </summary>
+    internal static bool StatueHeld
+    {
+        get
+        {
+            try
+            {
+                var pd = PlayerData.instance;
+                return pd != null && pd.Collectables.GetData(StatueItemName).Amount > 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Number of extra throws a single press should produce. Requires the Hornet Statuette; while
+    /// it is held, Tool Pouch upgrades each grant one extra throw and Quick Sling contributes its
+    /// own extra throw as well (absorbed here rather than left to the game's own queue, so both
+    /// work together).
     /// </summary>
     internal static int ExtraThrowsPerPress
     {
         get
         {
+            if (!StatueHeld)
+            {
+                return 0;
+            }
+
             var extra = PouchLevel;
             if (QuickSlingEquipped)
             {

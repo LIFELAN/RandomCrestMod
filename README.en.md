@@ -57,14 +57,18 @@ like vanilla for every other crest.
 | Random attacks | Every attack uses a random crest's attack moveset. The direction you pressed (normal / up / down / wall / dash / charge slash) is preserved. |
 | Random bind | Every bind uses a random crest's bind effect. |
 | Random tools | Every thrown tool becomes a random Red tool from the whole game — obtained or not. |
-| Tool barrage | One press throws several times: **+1** throw per Tool Pouch upgrade, **+1** more with Quick Sling; every chained throw re-rolls a fresh random tool. |
+| Tool barrage | **Requires the Hornet Statuette**: one press throws several times — **+1** throw per Tool Pouch upgrade, **+1** more with Quick Sling; every chained throw re-rolls a fresh random tool. **Without the statuette throws are exactly vanilla** (single; Quick Sling keeps its vanilla double throw). |
 | Random spells | Every cast silk skill becomes one of the six silk skills at random. Every skill except the Cross Stitch has a **3% per collected silk skill** chance to **immediately refund** the silk its cast spent (same spool animation as the Cross Stitch); the Cross Stitch keeps its guaranteed real-parry refund. |
 | Random taunt | Pressing the taunt button (R3 / V) plays a random one of the three vanilla flavours: standard **80%**, Beast crest battle-cry **14%**, or the Shakra Ring toss **6%**. The Beast flavour also switches in the Beast crest's unique taunt visual. |
 | Taunt offering | A taunt that plays fully on the ground while Chaos is equipped spends 80 shell shards and grants rosaries based on the rolled flavour: standard 0-50, Beast 60, Shakra Ring 80. With fewer than 80 shards the taunt stays purely cosmetic. |
-| Cross Stitch | While Chaos is equipped the Cross Stitch counters on its own (the stance flows straight into the counter even when not struck). Only the automatic counter removes the hit spark and adds the pink-white highlight; a real parry keeps the vanilla spark. Other crests keep the vanilla parry. |
+| Cross Stitch | While Chaos is equipped the Cross Stitch counters on its own. The automatic counter's retreat / highlight **always plays**, but it only **lands its follow-up damage 50% of the time**; a miss just recovers after the highlight. A **real parry always lands** and keeps the vanilla spark. Other crests keep the vanilla parry. |
+| Cursed bind | While Chaos is equipped, a random bind has a **5%** chance to become a **refused bind**: it takes **all silk**, and each silk chunk taken pays back **10 rosaries**. Other crests' binds are untouched. |
+| Hornet Statuette | The **multi-throw switch**. Besides the vanilla route (Fixer quest) there are two new ways to get it: (1) a one-time world pickup in **Bellhart**, in the map-seller area by the entrance — taken once and gone forever, not crest-gated; (2) while Chaos is equipped, dealing real damage with a **randomly rolled Needle Phial** awards **1 per use** (multi-hit in one use still counts once; more uses stack, **no cap**). A deliberately equipped Needle Phial does **not** award. The statuette can still be consumed for shards — doing so turns multi-throw off. |
 | Tool budget | Tools share a base **16 uses per bench** (configurable), **+25%** per Tool Pouch upgrade, and refill for **free**; every **collected** red tool gives a **+2%** chance (the Curvesickle upgrade adds another **+2%**, capped at 40%) that a throw costs no use. The Snare Setter and the Extractor never count. |
 | Plasmium Phial | When the random tool is the **Plasmium Phial** and the player owns the **Plasmium Gland**, its blue health is raised from **1 to 3** (no cooldown). |
+| Rune Rage | While Chaos is equipped, **Rune Rage** (Silk Bomb) blasts deal **double damage**. |
 | Custom HUD | A custom bind-orb frame, fixed "random" tool / spell HUD icons, and a custom crest spool on the save-selection screen. |
+| Tool Pouch shards | While Chaos is equipped, each **Tool Pouch upgrade** immediately grants **800 shell shards** (clamped by the game's shard cap; the cap itself rises 25% per Tool Pouch upgrade). Upgrades made on other crests do not count. |
 
 ### Special tool handling
 
@@ -89,8 +93,11 @@ Config file: `BepInEx/config/io.github.lifelan.randomcrestmod.cfg`
 | `Tools/ToolUsesPerBench` | `16` | Base number of uses every tool is refilled to at a bench (each Tool Pouch upgrade adds 25%). |
 
 > Everything else is **hardcoded** (tuned during development): random attacks / binds / tools /
-> spells / taunt / Cross Stitch / spell silk refund / Plasmium Phial boost are always on and only
-> apply to the Chaos crest; every red tool is always in the random pool (the Needle Phial keeps its
+> spells / taunt / Cross Stitch / spell silk refund / Plasmium Phial boost / Rune Rage damage
+> doubling are always on and only
+> apply to the Chaos crest; the Cross Stitch auto counter lands exactly **50%** of the time; tool
+> barrage needs the **Hornet Statuette**; the refused bind has a fixed **5%** chance and pays a
+> fixed **10 rosaries per silk chunk**; every red tool is always in the random pool (the Needle Phial keeps its
 > vanilla behaviour while equipped); Voltvessels rolls both of its forms; Rosary Cannon is kept
 > fully charged and fires continuously while held; the custom HUD frame, save spool and random
 > icons are always on, and the HUD frame offset/scale are fixed too.
@@ -105,6 +112,10 @@ Config file: `BepInEx/config/io.github.lifelan.randomcrestmod.cfg`
   skills.
 - A random bind requires a **full spool (9 silk)**; with less silk it behaves like the vanilla
   "not enough silk" message.
+- **Tool barrage** needs the **Hornet Statuette** in the inventory; without it tool throws behave
+  exactly like vanilla.
+- The Cross Stitch auto counter only lands its follow-up damage **50%** of the time; a miss plays
+  the retreat highlight and then recovers.
 - The Chaos crest does **not** count toward the game's completion percentage (other crests, tools
   and skills are unaffected).
 
