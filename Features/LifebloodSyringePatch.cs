@@ -53,7 +53,7 @@ internal static class LifebloodSyringeService
     {
         try
         {
-            if (!RandomToolService.RandomToolsActive)
+            if (!Gate.Tools)
             {
                 return;
             }

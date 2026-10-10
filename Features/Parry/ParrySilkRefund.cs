@@ -28,7 +28,7 @@ internal static class ParrySilkRefund
     /// </summary>
     internal static void Capture(int amount)
     {
-        if (!RandomCrestModPlugin.EnableParrySilkRefund || !RandomToolService.RandomSpellsActive)
+        if (!RandomCrestModPlugin.EnableParrySilkRefund || !Gate.Spells)
         {
             return;
         }
@@ -51,7 +51,7 @@ internal static class ParrySilkRefund
         _pending = 0;
 
         // Never leak onto another crest's Cross Stitch if a stale amount survived an auto counter.
-        if (!RandomCrestModPlugin.EnableParrySilkRefund || !RandomToolService.RandomSpellsActive)
+        if (!RandomCrestModPlugin.EnableParrySilkRefund || !Gate.Spells)
         {
             return;
         }

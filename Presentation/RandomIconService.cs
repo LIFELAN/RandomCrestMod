@@ -29,10 +29,10 @@ internal static class RandomIconService
             return null;
         }
 
-        if (tool.Type == ToolItemType.Red && RandomToolService.RandomToolsActive)
+        if (tool.Type == ToolItemType.Red && Gate.Tools)
         {
             // Quest tools keep their real HUD icon (they are not randomised when equipped).
-            if (RandomToolService.IsVanillaEquipTool(tool))
+            if (ToolPool.IsVanillaEquip(tool))
             {
                 return null;
             }
@@ -40,7 +40,7 @@ internal static class RandomIconService
             return IsPoisoned(tool) && PoisonToolIcon != null ? PoisonToolIcon : ToolIcon;
         }
 
-        if (tool.Type == ToolItemType.Skill && RandomToolService.RandomSpellsActive)
+        if (tool.Type == ToolItemType.Skill && Gate.Spells)
         {
             return SpellIcon;
         }

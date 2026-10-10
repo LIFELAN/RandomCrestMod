@@ -65,13 +65,18 @@
     <EmbeddedResource Include="Assets/crest_random_spell.png" LogicalName="RandomCrestMod.crest_random_spell.png" />
   </ItemGroup>
 
+  <!-- The console test project is built separately and must not be compiled into the plugin. -->
+  <ItemGroup>
+    <Compile Remove="tests/**" />
+  </ItemGroup>
+
+  <!-- Local install: copy the DLL/PDB into the BepInEx plugins folder. -->
   <Target Name="CopyToPlugins" AfterTargets="PostBuildEvent">
     <ItemGroup>
       <Binaries Include="$(TargetPath)" />
       <Binaries Include="$(TargetDir)/$(TargetName).pdb" />
     </ItemGroup>
 
-    <!-- Local install: copy the DLL/PDB into the BepInEx plugins folder. -->
     <Copy
       SourceFiles="@(Binaries)"
       DestinationFolder="$(SilksongPluginsFolder)/lifelan-$(AssemblyTitle)/"

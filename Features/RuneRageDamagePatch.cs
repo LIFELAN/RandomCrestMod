@@ -18,7 +18,7 @@ namespace RandomCrestMod;
 /// (Needle Throw, Silk Charge, Cross Slash, Parry, ...), so only the Rune Rage blast roots are
 /// matched by name.</para>
 ///
-/// <para>Gated by <see cref="RandomToolService.RandomSpellsActive"/>: other crests keep the vanilla
+/// <para>Gated by <see cref="Gate.Spells"/>: other crests keep the vanilla
 /// Rune Rage damage.</para>
 /// </summary>
 internal static class RuneRageDamageService
@@ -39,7 +39,7 @@ internal static class RuneRageDamageService
     /// </summary>
     internal static void ApplyAfterRefresh(HeroShamanRuneEffect effect)
     {
-        if (!RandomToolService.RandomSpellsActive || effect == null)
+        if (!Gate.Spells || effect == null)
         {
             return;
         }
