@@ -180,7 +180,12 @@ internal static class RandomAttackService
     /// </summary>
     internal static void ApplyForBind(HeroController hero)
     {
-        if (_active || _nailArtActive || _bindActive || hero == null)
+        // Deliberately does not block on _bindActive: while sprinting / skidding the previous bind's
+        // Restore is postponed (see EndBind / Tick), so _bindActive can still be set when the next
+        // bind starts. Blocking on it made every sprint bind reuse the first rolled crest (the same
+        // animation repeated). RandomBindService already serialises attempts with its own
+        // _attemptActive flag, so reaching here always means a fresh bind that must re-roll.
+        if (_active || _nailArtActive || hero == null)
         {
             return;
         }
@@ -211,6 +216,7 @@ internal static class RandomAttackService
 
             _bindActive = true;
             _bindWasBinding = false;
+            _bindCancelSent = false;
             _activateTime = Time.time;
             _minHold = 0.15f;
 
@@ -791,10 +797,16 @@ internal static class RandomAttackService
     /// Called from the <c>HeroController.IncrementAttackCounter</c> postfix. When a dash attack
     /// starts during a sprint, re-roll the crest for that attack (the quiet swap keeps the Sprint
     /// FSM running).
+    ///
+    /// <para>The Sprint FSM calls <c>IncrementAttackCounter</c> from its <c>Start Attack</c> state,
+    /// before it checks the crest and picks the dash-stab object. When the attack is pressed in the
+    /// same frame the sprint starts, <see cref="TickDash"/> has not run <see cref="ApplyForDash"/>
+    /// yet, so <c>_dashActive</c> is still false. Treat that call as a dash attack as well, otherwise
+    /// the very first stab of the sprint falls back to the currently installed (Hunter) moveset.</para>
     /// </summary>
     internal static void OnAttackCounterForDash()
     {
-        if (!_dashActive || _pending || !RandomCrestModPlugin.EnableRandomAttacks)
+        if (_pending || !RandomCrestModPlugin.EnableRandomAttacks)
         {
             return;
         }
@@ -803,6 +815,15 @@ internal static class RandomAttackService
         {
             var hero = HeroController.instance;
             if (hero == null)
+            {
+                return;
+            }
+
+            var sprintFsm = hero.sprintFSM;
+            var sprintState = sprintFsm != null ? sprintFsm.ActiveStateName : null;
+            var fromDashAttack = sprintState == "Start Attack";
+
+            if (!_dashActive && !fromDashAttack)
             {
                 return;
             }
@@ -821,6 +842,13 @@ internal static class RandomAttackService
             var group = pool[UnityEngine.Random.Range(0, pool.Count)];
             ApplyGroup(hero, group, quiet: true);
             SetDashStabVariables(hero, group);
+
+            if (!_dashActive)
+            {
+                _dashActive = true;
+                _activateTime = Time.time;
+            }
+
             _dashLastActive = Time.time;
 
             var crestName = SpoofCrest != null ? SpoofCrest.name : "Default(Hunter)";

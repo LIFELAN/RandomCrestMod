@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.2.3
+
+- Fixed the sprint dash stab (冲刺斩) always falling back to the Hunter moveset instead of the
+  random roll. PlayMaker's `CheckIfCrestEquipped` reads `ToolCrest.IsEquipped`, which Mono is free
+  to inline, so the crest spoof never reached the Sprint FSM's branch; that branch is now answered
+  directly, and a dash whose attack starts on the same frame the sprint begins is covered too.
+- Fixed consecutive sprint / skid binds (滑步缚丝) all reusing the **first** rolled crest until the
+  hero stopped, which looked like the same action repeating. The next bind now re-rolls every time.
+  The `TickDash` guard that keeps the crest from being dropped mid-bind is **kept**, so the Shaman
+  water / Rage-Reaper fixes stay intact.
+- New HUD frame appear / disappear animation. The Chaos frame now grows out of the spool and
+  retracts back in step with the game's own frame transition (`FrameAppear` / `FrameDisappear`),
+  instead of snapping in. Protrusions (top spike, bottom spike, needle) finish together rather than
+  the needle lagging behind. On scene load / save load it shows instantly so it does not fight the
+  game's own HUD intro.
+- Switching between Chaos and the base (un-upgraded) Hunter crest now plays the full transition
+  (old frame out, new frame in, change sound). Both share the game's `defaultFrameAnims`, so the
+  game used to treat it as "no change" and skip everything.
+- **New config options**, all three sharing the unnamed section of
+  `BepInEx/config/io.github.lifelan.randomcrestmod.cfg`:
+  - `CursedBind` (default `true`): turn the random cursed / refused bind (诅咒缚丝) on or off.
+  - `ParryAlwaysSucceed` (default `false`): `false` keeps the Cross Stitch auto counter at its
+    **50%** success roll, `true` makes it always land. Real parries are unaffected.
+  - `ToolUsesPerBench` (default `16`): moved next to the two new options. It used to live under
+    `[Tools]`; if you had customised it, set it again.
+- The red tool slot on the crest-selection screen moved up slightly (`0.9` → `0.95`).
+
 ## 0.2.2
 
 - The random bind can now resolve to the Cursed crest's **refused bind** (诅咒缚丝). It is a

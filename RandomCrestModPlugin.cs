@@ -17,6 +17,12 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
     /// upgrade increases it by 25% (rounded). Refills are free.</summary>
     internal static ConfigEntry<int> ToolUsesPerBench = null!;
 
+    /// <summary>When false, a random bind never resolves to the Cursed crest's refused bind.</summary>
+    internal static ConfigEntry<bool> CursedBindEnabled = null!;
+
+    /// <summary>When true, the Cross Stitch auto counter always lands instead of the 50% roll.</summary>
+    internal static ConfigEntry<bool> ParryAutoCounterAlwaysSucceeds = null!;
+
     // ---- Fixed values (previously configurable, now baked in) ----
 
     internal static readonly bool EnableRandomAttacks = true;
@@ -25,8 +31,8 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 
     /// <summary>When true, a random bind can resolve to the Cursed crest's refused bind (诅咒缚丝).
     /// The outcome is answered through the Bind FSM's own "Do Bind" branch, so the normal bind
-    /// gating still applies.</summary>
-    internal static readonly bool EnableCursedBind = true;
+    /// gating still applies. Configurable through <c>[CursedBind] Enabled</c>.</summary>
+    internal static bool EnableCursedBind => CursedBindEnabled.Value;
 
     /// <summary>Chance (0-1) that a random bind resolves to the Cursed crest's refused bind (诅咒缚丝).</summary>
     internal static readonly float CursedBindChance = 0.05f;
@@ -95,12 +101,30 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
     {
         Instance = this;
 
+        // All three live in one unnamed section: ConfigurationManager skips the header for an empty
+        // section name, so the list is just the three settings (no group titles in between).
+        const string section = "";
+
         ToolUsesPerBench = Config.Bind(
-            "Tools",
+            section,
             "ToolUsesPerBench",
             16,
             "Base tool capacity shared by every tool when resting at a bench. Each Tool Pouch upgrade "
             + "increases it by 25% (rounded to the nearest use). Refills are free.");
+
+        CursedBindEnabled = Config.Bind(
+            section,
+            "CursedBind",
+            true,
+            "When true, a random bind has a 5% chance to resolve to the Cursed crest's refused bind. "
+            + "When false, cursed binds never happen.");
+
+        ParryAutoCounterAlwaysSucceeds = Config.Bind(
+            section,
+            "ParryAlwaysSucceed",
+            false,
+            "Cross Stitch auto counter (stance expires without being hit): false = 50% chance to land "
+            + "(current default), true = always lands.");
 
         _harmony = new Harmony(Info.Metadata.GUID);
         _harmony.PatchAll(typeof(RandomAttackPatches));
@@ -135,6 +159,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
         _harmony.PatchAll(typeof(SkillGetMsgCrestSilhouettePatch));
         _harmony.PatchAll(typeof(ExtractorRewardPatch));
         _harmony.PatchAll(typeof(CursedBindRewardPatch));
+        _harmony.PatchAll(typeof(HudFramePatches));
 
         // Optional custom crest art (embedded PNGs). Drop crest_icon.png / crest_silhouette.png /
         // crest_glow.png into Assets/ to use them.

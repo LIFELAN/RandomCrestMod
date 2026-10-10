@@ -3,6 +3,7 @@ using System.Reflection.Emit;
 using GlobalEnums;
 using GlobalSettings;
 using HarmonyLib;
+using HutongGames.PlayMaker.Actions;
 using UnityEngine;
 
 namespace RandomCrestMod;
@@ -65,6 +66,27 @@ internal static class RandomAttackPatches
         {
             __result = ReferenceEquals(__instance, RandomAttackService.SpoofCrest);
         }
+    }
+
+    /// <summary>
+    /// PlayMaker's <c>CheckIfCrestEquipped</c> reads <c>ToolCrest.IsEquipped</c>, which is a one-line
+    /// comparison Mono is free to inline into the action. When that happens the <c>IsEquipped</c>
+    /// postfix above never runs for FSM branches, and the Sprint FSM always falls back to the
+    /// default (Hunter) dash stab even though the random config was installed. Override the action's
+    /// result directly while a crest is spoofed so the branch matches the config we installed.
+    /// </summary>
+    [HarmonyPatch(typeof(CheckIfCrestEquipped), nameof(CheckIfCrestEquipped.IsTrue), MethodType.Getter)]
+    [HarmonyPrefix]
+    private static bool CheckIfCrestEquipped_IsTrue_Prefix(CheckIfCrestEquipped __instance, ref bool __result)
+    {
+        if (!RandomAttackService.IsSpoofing)
+        {
+            return true;
+        }
+
+        var crest = __instance.Crest != null ? __instance.Crest.Value as ToolCrest : null;
+        __result = ReferenceEquals(crest, RandomAttackService.SpoofCrest);
+        return false;
     }
 
     /// <summary>

@@ -78,7 +78,8 @@ internal static class ParryAutoCounterService
             // lands; only the stance-expired auto counter rolls.
             if (state == ClashState && !ParryClashTrigger.Attacked)
             {
-                _autoCounterHits = UnityEngine.Random.value < AutoCounterSuccessChance;
+                _autoCounterHits = RandomCrestModPlugin.ParryAutoCounterAlwaysSucceeds.Value
+                    || UnityEngine.Random.value < AutoCounterSuccessChance;
                 RandomCrestModPlugin.LogInfo(
                     $"[ParryAutoCounter] auto counter roll -> {(_autoCounterHits ? "hit" : "whiff")}.");
             }

@@ -26,7 +26,7 @@ internal static class CrestService
     // Slot layout: 1 Red (up) + 1 Skill + 2 Blue + 2 Yellow = 6 slots, all unlocked.
     //
     //   slot0: Skill (0.0, -0.9)
-    //   slot1: Red   (0.0,  0.9)  AttackBinding.Up
+    //   slot1: Red   (0.0,  0.95)  AttackBinding.Up
     //   slot2: Blue  (2.5, -1.8)
     //   slot3: Blue  (-2.5, -1.8)
     //   slot4: Yellow(-1.0, -2.7)
@@ -37,7 +37,7 @@ internal static class CrestService
         int Up, int Down, int Left, int Right)[] Slots =
     {
         (ToolItemType.Skill, AttackToolBinding.Neutral, 0.0f, -0.9f, 1, 4, 3, 2),
-        (ToolItemType.Red, AttackToolBinding.Up, 0.0f, 0.9f, -1, 0, 3, 2),
+        (ToolItemType.Red, AttackToolBinding.Up, 0.0f, 0.95f, -1, 0, 3, 2),
         (ToolItemType.Blue, AttackToolBinding.Neutral, 2.5f, -1.8f, 1, 5, 0, -1),
         (ToolItemType.Blue, AttackToolBinding.Neutral, -2.5f, -1.8f, 1, 4, -1, 0),
         (ToolItemType.Yellow, AttackToolBinding.Neutral, -1.0f, -2.7f, 3, -1, -1, 5),

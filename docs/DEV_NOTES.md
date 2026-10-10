@@ -5,24 +5,32 @@
 
 ## 零、版本 & 状态（每次开工先看这里）
 
-> **⚠️ 进行中（未发布，用户正在走全流程实测）：诅咒缚丝 + 大黄蜂雕像多投开关 + 十字绣 50% + 储液针管奖励。**
-> - 诅咒缚丝：固定 **5%**（写死，不可配置），走 Bind FSM 自己的
->   `Do Bind` → `IsAnyCursed` 分支。
->   **方向 2 已定案并实现**：扣除全部灵丝，每扣 1 格补偿 **10 枚念珠**
->   （`CursedBindRewardPatch`，patch `HeroController.TakeSilk(int, SilkTakeSource)`，`source == Curse`
->   且 `CursedBindService.Active`）。方向 1（不扣丝）未采纳（见“五之七”）。
-> - 多投开关：`RandomToolService.StatueHeld`（`PlayerData.Collectables.GetData("Fixer Idol").Amount > 0`），
->   `ExtraThrowsPerPress` 无雕像返回 0，`Tick` 链清理同时看雕像。
-> - 十字绣：`ParryAutoCounterService` 自动反击进入 `Parry Clash` 时掷固定 **50%**；失败把
->   `Parry Clash` 的 `FINISHED` 目标改成 `Parry Recover`（跳过后面的交叉斩伤害），高光照常。
-> - 符文之怒：装备纷乱时丝弹伤害**翻倍**（`RuneRageDamagePatch.cs`，patch `HeroShamanRuneEffect.Refresh`
->   postfix，只认 `Weaver Bomb Blast` / `... Zap` 两个弹体；详见“五之九”）。
-> - 雕像两条新获取：①`StatuePickupService` 在 `Belltown` (97.39893, 22.56768) 生成一次性拾取
->   （`SceneData.PersistentBools` 持久化，不检测纹章）；②`ExtractorRewardPatch` 储液针管
->   `AttackType.ExtractMoss` 实质伤害每次使用 +1（`EXTRACTOR` 事件重置每次使用）；主动装备储液针管不奖励。
-> - 工具袋升级补碎片：`ToolPouchShardBonus` 每帧轮询 `ToolPouchUpgrades`，**装备纷乱时**每次升级 `+800` 碎片
->   （`CurrencyManager.AddShards`，受游戏上限封顶）；其它纹章升级不补。
-> - 细节见“**五之七**”“**五之八**”。
+> **当前：v0.2.3 已发布（Thunderstore + GitHub tag）。** 本轮改动（冲刺斩 / 滑步缚丝修复、HUD 出现消失动画、
+> 新增配置项）见下方与“五之十”“五之十一”。
+
+### 本轮改动（v0.2.3，已发布）
+
+1. **冲刺斩总用猎手** → 修。根因：`CheckIfCrestEquipped` 读的 `ToolCrest.IsEquipped` 太小被 Mono 内联，
+   `ToolCrest.IsEquipped` 的 postfix 对这些 FSM 分支不生效。新增 `RandomAttackPatches.CheckIfCrestEquipped_IsTrue_Prefix`，
+   并给 `RandomAttackService.OnAttackCounterForDash` 加同帧兜底。详见“五之十”。
+2. **纷乱 HUD 出现/消失动画** → 按方向等比揭示（圆盘固定、三个突出一起长）；`HudFramePatches` 三个 hook
+   跟随游戏 `FrameAppear/FrameDisappear`；场景/读档直接显示（方案 B）。详见“五之十”。
+3. **纷乱 ↔ 基础猎手（未升级）过渡** → 两者共用 `defaultFrameAnims`，游戏 `DoChangeFrame` 判定“没变”而跳过；
+   新增 `HudFramePatches.DoChangeFrame_Prefix` 绕过。详见“五之十”。
+4. **纹章选择界面红色工具槽** `0.9 → 0.95`（`CrestService.Slots`）。
+5. **配置项**（同一个空名字段，ConfigurationManager 里三行）：`ToolUsesPerBench=16` / `CursedBind=true` /
+   `ParryAlwaysSucceed=false`。
+6. **累积未发布**（更早实现、多为实测通过）：诅咒缚丝 5%（现可关）、大黄蜂雕像多投开关、十字绣自动反击
+   50%（现可改必中）、储液针管奖励、符文之怒翻倍、BellTown 雕像拾取、工具袋升级补碎片。
+   细节见“五之七”“五之八”“五之九”。
+7. **冲刺缚丝复用同一纹章** → 修。`ApplyForBind` 曾被 `_bindActive` 挡住不重掷（冲刺时 `Restore` 被推迟），
+   该状态自 v0.1.1 起一直存在。已去掉 `ApplyForBind` 守卫里的 `_bindActive`。详见“五之十一”。
+
+> **开工**：`dotnet build -c Release`（应 0 警告 0 错误）→ 覆盖 `BepInEx/plugins/lifelan-RandomCrestMod/RandomCrestMod.dll`。
+> **发布**见“十一”。临时排查日志（`[DashLog]`/`[HudLog]`/`[HudDbg]`）已全部删除；需要时把
+> `RandomCrestModPlugin.DebugLogging` 改 true 或临时加 `LogInfo`。
+> **工作区改动文件**：`CrestService.cs`、`HudFrameService.cs`、`HudFramePatches.cs`(新)、`RandomAttackPatches.cs`、
+> `RandomAttackService.cs`、`RandomCrestModPlugin.cs`、`ParryAutoCounterService.cs`、`CursedBindService.cs`、`docs/DEV_NOTES.md`。
 
 > **当前版本 v0.2.1（已发布 Thunderstore + GitHub Release / tag `v0.2.1`）**：在 v0.2.0 基础上：①蓝血 HUD 染色修复 + 更换高清 HUD 外框（对齐原版 cloakless 盘）；②所有红工具**始终**进随机池（`AllToolsRandom` 配置移除，`Extractor` 装备时仍豁免、`Silk Snare` 改为遵循随机）；③念珠炮始终充能 + 长按连发（`IsToolEquippedPatch`）；④符文之怒改动整体退回（删除 `RuneRageRadiusService`）。详情见“五之六”；版本号 `Directory.Build.props` / `thunderstore.toml` 均为 `0.2.1`。
 >
@@ -141,20 +149,26 @@ a0c6fff Add HUD frame offset config (internal tuning)
 - 显示名：中文 **纷乱**，英文 **Chaos**；说明：`你永远不知道下一秒会发生什么。` / `You never know what will happen next.`
 - 创建方式：`CrestService` 克隆猎手(Hunter)纹章，运行时 `Add` 进 `ToolItemManager.crestList`。
 - 槽位（`CrestService.Slots`）：6 个，全部 `IsLocked=false`：
-  - Skill / Neutral (0,-0.9)、Red / Up (0,0.9)、Blue (2.5,-1.8)、Blue (-2.5,-1.8)、Yellow (-1,-2.7)、Yellow (1,-2.7)。
+  - Skill / Neutral (0,-0.9)、Red / Up (0,0.95)、Blue (2.5,-1.8)、Blue (-2.5,-1.8)、Yellow (-1,-2.7)、Yellow (1,-2.7)。
+  - 红色槽 2026-10-10 由 0.9 微调到 0.95（纹章选择界面位置），运行时 `ApplySlots` 烘焙，重进游戏/重开档生效。
 
 ## 三、功能开关与门控（重要）
 
-- `RandomCrestModPlugin` 里，除 `ToolUsesPerBench` 外全是 **写死的 static readonly**：
+- `RandomCrestModPlugin` 里，除配置项外全是 **写死的 static readonly / 只读属性**：
   `EnableRandomAttacks / EnableRandomBind / EnableRandomTools / EnableRandomSpells / EnableCustomHudFrame / EnableCustomSaveSpool / EnableRandomIcons / EnableRandomTaunt / OnlyOnRandomCrest(true) / DebugLogging(false)`。
+- **配置项**（`Config.Bind`，可在 ConfigurationManager 里热改；**全部同一个空名字段**，这样 Manager
+  不画分组标题，列表就是三行）：
+  - `ToolUsesPerBench = 16` — 坐椅子补满的基准次数，每级工具袋 +25%，补充免费。
+  - `CursedBind = true` — 诅咒缚丝开关；`false` 时 `CursedBindService.Roll()` 直接返回 false，随机缚丝永不出诅咒。
+  - `ParryAlwaysSucceed = false` — 十字绣**自动反击**（姿态自然结束、未被击中）是否必中；`false`=50%（当前默认），`true`=必中。真实格挡永远反击，不受影响。
 - **所有随机效果只在装备纷乱时生效**：
   - 攻击/缚丝：`RandomCrestModPlugin.OnlyOnRandomCrest && CrestService.IsRandomCrestEquipped()`；
   - 工具/法术：`RandomToolService.GateOpen`（同上）；
   - 嘲讽：`RandomTauntService.Roll` / `Tick` 里的 `IsRandomCrestEquipped()`；
   - 随机图标：`RandomIconService.For` 走 `RandomToolsActive/RandomSpellsActive`；
   - HUD 外框：`HudFrameService.Tick` 检查 `IsRandomCrestEquipped()`。
-- 唯一配置项：`[Tools] ToolUsesPerBench = 16`（坐椅子补满的基准次数，每级工具袋 +25%，补充免费）。
-- **诅咒缚丝（cursed bind）功能已整体移除**，不要再加回来（见“八、历史坑”）。
+- 旧的 `FORCE CURSED BIND` 实现已移除（见“八、历史坑”）；现版本是 Bind FSM `Do Bind` 分支覆盖（见“五之七”），
+  由 `[CursedBind] Enabled` 控制开关。
 
 ## 四、随机攻击 / 缚丝（`RandomAttackService` / `RandomBindService`）
 
@@ -504,6 +518,101 @@ dotnet build -c Release
 - 纷乱上符文之怒命中伤害约为平时 **2 倍**；带 Zap 形态（若曾 equipped 对应工具）仍保留其额外倍率。
 - 换其它纹章放符文之怒，伤害与原版一致；纷乱卸下后不回弹、不残留。
 
+## 五之十、冲刺斩修复 + HUD 出现/消失动画（本轮，未发布）
+
+### 1. 冲刺斩（Dash Stab）总是猎手：根因与修复
+
+- 现象：冲刺瞬间按攻击，冲刺斩永远走猎手（`Set Attack Single`）分支。
+- 根因：Sprint FSM 用 PlayMaker `CheckIfCrestEquipped` 选分支，它读
+  `ToolCrest.IsEquipped`（`PlayerData.instance.CurrentCrestID == name`）。这个方法极小，Mono JIT 会把它
+  **内联**进 `CheckIfCrestEquipped.IsTrue`，于是挂在 `ToolCrest.IsEquipped` 上的 postfix 对这些 FSM
+  分支不生效 → 永远按真实纹章（纷乱）判定 → 落到 default 猎手分支。同 `IsShamanCrestEquipped` 那个老坑。
+- 修复：`RandomAttackPatches` 新增 `CheckIfCrestEquipped.IsTrue` getter 的 **prefix**（虚属性走虚表，
+  不会被内联）：`IsSpoofing` 时直接 `__result = ReferenceEquals(crest, SpoofCrest)`。
+- `RandomAttackService.OnAttackCounterForDash` 另加 `sprintFSM.ActiveStateName == "Start Attack"` 兜底
+  （冲刺起步同帧时 `_dashActive` 还没置位），此时补 `_dashActive/_activateTime`。
+
+### 2. HUD 纷乱外框出现/消失动画（`HudFrameService` + 新 `HudFramePatches`）
+
+- 目标：纷乱外框像原版一样「旧纹章消失 → 纷乱出现 / 纷乱消失 → 新纹章出现」。
+- 机制：`BindOrbHudFrame.DoChangeFrame` 按纹章身份选 `BasicFrameAnims`；纷乱不认识 → 用
+  `defaultFrameAnims`（猎手）。切换流程是 `FrameDisappear(旧) → FrameAppear(新)`。
+- `HudFramePatches` postfix 三个方法（注册在 `RandomCrestModPlugin.Awake`）：
+  - `FrameAppear`：游戏开始播新帧 appear（旧纹章 disappear 已完）→ 纷乱时接管 overlay 播 appear；
+    否则（新纹章不是纷乱）`ReleaseNow()` 交还游戏帧。
+  - `FrameDisappear`：旧帧开始消失 → 若 overlay 正在显示（旧纹章是纷乱）就播纷乱收起。
+  - `AlreadyAppeared`：instant 路径（跳过 appear）→ 纷乱瞬间顶上 / 否则释放。
+- **overlay 用「按方向等比揭示」，不是整体缩放**（缩放会让圆盘也变大，且针太长会拖后）：
+  - 遮罩 mesh 是 `MaskGrid=160` 的网格，每帧只改顶点 alpha。
+  - `BuildQuad` 先扫描贴图，按 `MaskAngleBins=720` 算每个方向的**最远不透明像素**；每个顶点
+    `norm = (d - DiskRevealFrac) / (该方向最远 - DiskRevealFrac)`，盘内 `norm=0`。
+  - `ApplyMask(progress)`：`alpha = 1 - SmoothStep(0,1, InverseLerp(progress, progress+MaskSoftness, norm))`。
+    这样圆盘固定、所有突出**同时**到各自终点（不会针拖后）。
+  - 常量：`DiskRevealFrac=0.1464`（盘半径/图高，源图盘直径 640px）、`MaskSoftness=0.01`、
+    `AppearDuration=0.5s`（ease-in）、`DisappearDuration=0.15s`（ease-out）。`_reveal` 是进度 0..1。
+- **场景/读档 vs 纹章切换**（方案 B）：
+  - `Reset()`（`SceneInit` / `SetLoadedGameData`）→ `_sceneReset`；新场景里游戏帧一上屏就**直接显示
+    完整帧**（不播生长）。因为游戏自己的 HUD 出场动画已经在演，我们再来一次「整体长大」很突兀。
+  - 只有**纹章切换**走 `FrameDisappear → FrameAppear` 时播生长/收回。
+  - **`_sceneReset` 必须有寿命**：场景 HUD 可见后 ~1s 过期（`_sceneResetSince`，只用 `HudVisible()` 判断）。
+    否则「装别的纹章 → 进出场景 → 切回纷乱」会被场景加载的「直接显示」抢走（椅子菜单里 `CurrentCrestID`
+    先变、游戏的 `FrameDisappear` 后到，切回时仍有生长被笛）。实际踩的坑：过期判断里带了
+    `_gameRenderer != null && _gameRenderer.enabled`，而装别的纹章时我们从不 `Acquire()`，`_gameRenderer`
+    一直是 null → 过期从未跑过。真实换纹章的 `FrameDisappear` 也会清 `_sceneReset`（游戏事件在 Update、
+    我们在 LateUpdate，正常换纹章会先到），但不能只靠它。
+- **纷乱 ↔ 基础猎手（未升级）修好**：两者都用 `defaultFrameAnims`，`DoChangeFrame` 会因
+  「Idle clip 相同」提前返回 → 整个过渡（旧消失 / 新出现 / 切换音效）被跳过，换回默认纹章既没特效
+  也没声音。修法：`HudFramePatches` 新增 `DoChangeFrame` **prefix**，装备是纷乱或 `Gameplay.HunterCrest`
+  时把私有 `currentFrameAnims` 置空，使下次 `basicFrameAnims == null` 绕过该提前返回；只对这两个
+  纹章做，同纹章刷新仍在身份检查处提前返回。已实测通过。
+- 关键点：
+  - 换纹章时**不能立刻 `Restore()`**（原来菜单里就撤了，退出菜单游戏才过渡 → 只看到猎手帧）。
+    overlay 还在时先挂着，等 `FrameDisappear` hook 再收；0.75s 超时只在 HUD 可见时计时。
+  - 收完后保持 `_reveal=AppearStartReveal`（只剩圆盘）压着游戏帧，直到新纹章 `FrameAppear` 才交还。
+  - 场景加载时游戏会先报一次 `FrameAppear chaos=False` 再补 `FrameDisappear`+`FrameAppear chaos=True`；
+    `_suppressDisappearUntil` 会吞掉这次补播的 `FrameDisappear`；非纷乱的 `FrameAppear`/`AlreadyAppeared`
+    也**不会**在 `_animMode==Appear` 时把 overlay 拽走。
+  - 防重放：`_shown` 或正在 appear 时再来 `FrameAppear` 只 `Apply` 不重播。1.5s 兜底防卡死。
+  - **`Mathf.SmoothStep(from,to,t)` 的第三个参数是 0–1 插值系数，不是距离**（踩过两次，满进度
+    alpha 变负 → 整块透明）。距离要先 `InverseLerp` 归一化。
+- 纹章选择界面红色工具槽：`CrestService.Slots` 里 Red 的位置 `(0, 0.9)` → `(0, 0.95)`（用户要求上移一点点），
+  只影响纷乱在纹章选择界面的槽位布局。
+
+### 3. 纹章模板问题（结论）
+
+- 功能层面：新纹章实际上必须克隆一个现有纹章（本项目克隆 Hunter）。`ToolCrest → HeroControllerConfig`
+  挂着整套招式对象/动画库/参数，从零造等于把模板资产全复制一遍。
+- HUD 帧是唯一例外：`BindOrbHudFrame` 把每纹章的 appear/idle/disappear 写死按纹章身份，没有新纹章槽位，
+  所以新纹章永远拿 `defaultFrameAnims`（猎手）；要有自己的帧动画只能 patch `BindOrbHudFrame` 或用 overlay。
+
+### 4. 状态
+
+- 已实测通过；临时 `[DashLog]` / `[HudLog]` 常开日志已删除；**暂不发布**。
+
+## 五之十一、冲刺缚丝复用同一纹章（v0.1.1 起，已修）
+
+- 现象：连续冲刺缚丝时每次都出现**同一个纹章 / 同一个动作**，直到落地 / 停下才换一个，然后继续重复。
+- 根因需要两个条件同时成立：
+  1. `ApplyForBind` 的守卫 `if (_active || _nailArtActive || _bindActive || hero == null) return;` 在 `_bindActive`
+     未清时直接早退，**不重掷纹章**。该守卫从 v0.1.0 首个提交 `fd73bee` 起就在。
+  2. `_bindActive` 在冲刺期间不会被清：`EndBind` 与 `Tick` 的缚丝分支都因 `IsSprintOrSkid(hero)` 暂缓 `Restore`。
+- **定位：v0.1.1（`eb44157`）**。v0.1.0 的 `TickDash` 在冲刺短暂中断后有一个兜底 `Restore`，且**没有**检查 `_bindActive`：
+  ```csharp
+  if (sprintActive) { _dashLastActive = Time.time; return; }
+  // v0.1.0：这里没有 _bindActive 检查
+  if (Time.time - _dashLastActive > 0.25f || Time.time - _activateTime > 10f) Restore(hero);
+  ```
+  它会顺手把 `_bindActive` 清掉，所以下一次缚丝能重掷。v0.1.1 为修「萨满空中缚丝穿水 / 野兽·收割者 buff 丢失」
+  在兜底前加了 `if (_active || _nailArtActive || _bindActive) return;`，从此刻起冲刺期间没人再清 `_bindActive`
+  → `ApplyForBind` 一直早退 → 复用第一次掷到的纹章。v0.1.7 又给 `EndBind` / `Tick` 加 `IsBindFsmBusy`，
+  只是让它卡得更久，不是起点。**v0.1.0 → v0.2.2 一直存在。**
+- 日志佐证（`BepInEx/LogOutput.log`，PureNeedleMod 的 bind 诊断）：连续 11 次非萨满 `Bind Air` 后落地一次
+  （此时才 `Restore` 清掉），接着连掷到萨满并卡住 12 次 `Shaman Air`。
+- 修法（本轮）：`RandomAttackService.ApplyForBind` 守卫去掉 `_bindActive`（一次尝试已由 `RandomBindService._attemptActive`
+  串行化，能进来就一定是新缚丝，必须重掷）；同时在重掷时补 `_bindCancelSent = false;`，让新缚丝重新拥有落水安全网。
+  **不要**去改 `TickDash` 里那句 `_bindActive` 守卫——它是 v0.1.1 修穿水 / buff 的关键，删了会退回旧 bug。
+- 待用户完整测试。
+
 ## 六、HUD / 存档界面美术
 
 - 已解包：`C:\Users\fuenlai\Desktop\Silksong_HUD_Frames\` 下每个纹章一张 idle frame（`hunter` / `cloakless` / `hunter_v2` / `hunter_v3` / `warrior_beast` / `reaper` / `wanderer` / `witch_cursed` / `witch` / `toolmaster_architect` / `spell_shaman`），源脚本 `tmpwork/extract_crest_hud_frames.py`（从 `hud_assets_all.bundle` 的 atlas0 按 UV 裁剪）。游戏里没有单独的钢魂 HUD 贴图，钢魂外观更可能是 desaturate/黑色染。
@@ -562,6 +671,10 @@ dotnet build -c Release
    - 为何用 Transpiler 而不是 Postfix：`IsShamanCrestEquipped` 是极小的非虚方法，Mono JIT 很可能把它内联进 `TryDoTransition`，那样 Harmony 对该方法的 detour 会被绕过；直接改调用点不受内联影响。
    - 只影响「缚丝中且随机到萨满」这一种情况；其它纹章缚丝仍按原版被挡（它们很快结束，不会卡死），未装备纷乱时行为完全不变。
    - 已实测通过（0.1.9）：装备纷乱、从上层掉入下层场景门、随机掷到萨满时能正常切场景。
+6. **冲刺缚丝复用同一纹章**（v0.1.1 → v0.2.2，已修）：`ApplyForBind` 被 `_bindActive` 挡住不重掷，而冲刺期间
+   `EndBind` / `Tick` 都因 `IsSprintOrSkid` 推迟 `Restore`，`_bindActive` 不会清 → 复用第一次掷到的纹章。
+   起点是 v0.1.1（`eb44157`）给 `TickDash` 加 `_bindActive` 守卫（修穿水 / buff 必需，**不能删**）。
+   修法是让 `ApplyForBind` 不再看 `_bindActive`。详见“五之十一”。
 
 ## 九、待办 / 待确认
 
@@ -581,6 +694,7 @@ dotnet build -c Release
   出招、共享次数正常扣（0.1.9 通过；`RollToggleState` 保留双形态）。
 - [x] **实测嘲讽三形态**：普通 / 野兽吼叫 / 投掷环都能正确触发；野兽形态独占 `TauntSlash` 动作随声音
   一起出现（Warrior root 开关正确、`Taunt Slash` 变量被覆写），Rings 的 `BoolAllTrue` 只依赖我们已覆盖的 bool。
+- [x] **实测通过（v0.2.3）**：冲刺时连续缚丝，每次都重掷成不同的纹章（修 `ApplyForBind` 的 `_bindActive` 守卫，见“五之十一”）。
 - [ ] （可选）滑步缚丝时 Sprint FSM 的缓存冲刺劈砍对象不会随 bind 刷新；目前靠下一次冲刺劈砍重掷兜底，未发现可见问题。
 - [ ] （可选）SilkCurseMod 兼容：让 SilkCurseMod 在装备纷乱时让路。
 - [ ] （可选）随机结果临时日志，验证 7 纹章均匀分布。
@@ -590,7 +704,7 @@ dotnet build -c Release
 ## 十、环境 / 路径 / 分析资料
 
 - 游戏：`C:\Program Files (x86)\Steam\steamapps\common\Hollow Knight Silksong`
-- 配置：`<游戏>/BepInEx/config/io.github.lifelan.randomcrestmod.cfg`（旧配置有孤儿键时可直接删文件让其重建；当前只含 `[Tools] ToolUsesPerBench`）
+- 配置：`<游戏>/BepInEx/config/io.github.lifelan.randomcrestmod.cfg`（旧配置有孤儿键时可直接删文件让其重建；当前三项 `ToolUsesPerBench` / `CursedBind` / `ParryAlwaysSucceed` 都在空名字段下）
 - 分析资料（同机 `E:\Agent\Pi\tmpwork`，**完整索引见 `tmpwork/INDEX.md`**）：
   - `acs/` — `Assembly-CSharp.dll` 的反编译源码（`acs/full.cs` 是全量合并版，查类/方法最快）；`acs/HutongGames.PlayMaker.Actions/` 是各 PlayMaker Action 源码；
   - `tk2d_src/` — 反编译的 `TeamCherry.TK2D`（`tk2dSprite.EnableKeyword`、`tk2dBaseSprite.color`）；
@@ -633,3 +747,51 @@ dotnet build -c Release
   复制 token（只显示一次）。没有 token 时 CI 只构建产物、不发包。
 - 版本号来源：`Directory.Build.props` 的 `<Version>`；`thunderstore.toml` 的 `versionNumber` 需手动保持一致。
 - `icon.png`（仓库根，256×256）由 `tmpwork/crest_icon_on_dark.png` 生成，仅用于商店图标。
+
+## 十二、设计：克隆纹章 vs 真纹章（取舍）
+
+> 纷乱是**运行时克隆猎手**（`CrestService.EnsureCreated`：`Instantiate(Gameplay.HunterCrest)` → 改名 →
+> 塞进 `ToolItemManager.crestList`）。它只是一个「新的 `ToolCrest` 对象」，引用的资产（`HeroControllerConfig`、
+> 招式对象、动画库、图标/剪影/曝光、HUD 帧、槽位、本地化）全是**猎手的**。所有「随机」行为都是运行时
+> Harmony 补丁实现的。
+
+### 1. 本质：资产身份
+
+- 游戏很多系统是**按纹章资产身份**判断：`Gameplay.HunterCrest/WandererCrest/...`、
+  `PlayerData.CurrentCrestID == "X"`、`BindOrbHudFrame.DoChangeFrame` 的 if 链、`GetHeroAttackObject` 读
+  `CurrentConfigGroup`……克隆纹章不在这些里，真纹章在。
+- **即便在 AssetBundle 里做一份「真纹章」**，只要不能改游戏编译/序列化进去的数据（`Gameplay` 字段、
+  `DoChangeFrame` if 链、各种 `CurrentCrestID == "X"`），它照样不被这些系统认识，照样要 patch。
+  所以对 mod 来说「原生真纹章」并不存在，只是**自带资产多少**的区别。
+
+### 2. 逐系统对照
+
+| 系统 | 克隆（本项目） | 真纹章 |
+|---|---|---|
+| `HeroControllerConfig` / 招式 | 共用猎手（随机池里「猎手」= 基础猎手，v2/v3 无法区分） | 自己一份 |
+| `CurrentCrestID` | `RandomCrest`，`== "Hunter"/"Spell"/...` 全 false | 自己的 ID，检查照旧 |
+| `IsEquipped` / `CheckIfCrestEquipped` | 不认识 → 要 spoof | 原生 |
+| HUD 外框 | `DoChangeFrame` 落到 `defaultFrameAnims`（猎手）→ overlay + hook | 自带 appear/idle/disappear |
+| 图标/剪影/曝光/本地化/槽位 | 运行时覆盖：内嵌 PNG、注入字符串、`ApplySlots` | 自带 |
+| 动画库 | 用猎手 clip → `RandomCrestAnimationLibrary` + `AnimationFallbackPatches` 合并兜底 | 自带 |
+| 存档 | 手动 `UnlockForCurrentSave`（每会话重建） | 原生 |
+| 完成度/成就 | `CrestPatches.CountGameCompletion` 把纷乱那 1 点扣回；`ALL_CRESTS` 靠分子分母平衡 | 原生 |
+
+### 3. 取舍
+
+- **克隆**：无需 Unity 工程/资产包，`Instantiate` + 内嵌 PNG 即可分发；招式/动画/槽位直接复用，风险低。
+  代价：**每个「按身份判断」的系统都要 patch/spoof**，且容易被时序/内联等细节咬（本轮的冲刺斩、HUD 过渡
+  都是这类）；升级档、原生纹章特效需要额外补。
+- **真纹章**：相关系统原生一致，少一堆 spoof；但要游戏资产工程（作者 `ToolCrest`/`HeroControllerConfig`/
+  动画/HUD 帧），且**写死的身份检查仍要 patch**，成本高、收益有限。
+- 结论：本项目选克隆是务实解；代价就是「桥接层」的复杂度和维护成本。
+
+### 4. 桥接层清单（因选了克隆）
+
+- `ToolCrest.IsEquipped` spoof（`IsSpoofing`/`SpoofCrest`）；`RandomAttackPatches.CheckIfCrestEquipped_IsTrue_Prefix`（防内联）。
+- `CurrentConfigGroup` 切换（`RandomAttackService.ApplyGroup`）提供随机招式。
+- `CurrentCrestID` 类检查：`IsShamanCrestEquippedForTransition`（Transpiler）、`ReaperPayoutPatch`。
+- HUD overlay + `HudFramePatches`（`FrameAppear`/`FrameDisappear`/`AlreadyAppeared`/`DoChangeFrame`）。
+- `CrestService.ApplyVisuals/ApplySlots/ApplyLocalisation` 注入美术/槽位/文案；`CrestUpgraderPatches` 扣伊娃进度；
+  `SkillGetMsgPatches` 修技能弹窗剪影。
+- 随机池/工具/法术/嘲讽各自 spoof。

@@ -48,9 +48,14 @@ internal static class CursedBindService
     /// <summary>True while the current bind should be diverted into the cursed branch.</summary>
     internal static bool Active => _active;
 
-    /// <summary>Rolls whether this bind is cursed.</summary>
+    /// <summary>Rolls whether this bind is cursed. Always false when the feature is disabled.</summary>
     internal static bool Roll()
     {
+        if (!RandomCrestModPlugin.EnableCursedBind)
+        {
+            return false;
+        }
+
         return UnityEngine.Random.value < Chance;
     }
 
