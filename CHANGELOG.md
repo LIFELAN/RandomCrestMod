@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.5
+
+- The three settings now live in a named `[General]` section instead of an unnamed one. r2modman's
+  config editor drops any section whose name is empty, so the settings could not be managed from
+  r2modman before; they can now. (Values set in the old unnamed `[]` section go back to their
+  defaults.)
+
 ## 0.2.4
 
 - Fixed a long-standing stall: pressing the sprint (疾风步) right as Hornet stepped onto a wall

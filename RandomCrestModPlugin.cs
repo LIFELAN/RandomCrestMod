@@ -76,9 +76,10 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
     {
         Instance = this;
 
-        // All three live in the same unnamed section: ConfigurationManager skips the header for an
-        // empty section name, so the list is just the three settings (no group titles in between).
-        const string section = "";
+        // All three live in one named section. The name must be non-empty: r2modman's config editor
+        // discards any section whose name is empty (`sections.filter(s => s.sectionName !== "")`), so an
+        // unnamed section is unmanageable there. ConfigurationManager just shows "General" as a header.
+        const string section = "General";
 
         ToolUsesPerBench = Config.Bind(
             section,

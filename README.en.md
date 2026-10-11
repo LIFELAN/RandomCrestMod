@@ -94,8 +94,8 @@ Config file: `BepInEx/config/io.github.lifelan.randomcrestmod.cfg`
 | `CursedBind` | `true` | Whether a random bind may become the refused bind (fixed 5%). `false` disables it entirely. |
 | `ParryAlwaysSucceed` | `false` | Whether the Cross Stitch auto counter always lands. `false` = 50% (default), `true` = always. |
 
-> The three settings share one **unnamed section** (an old `[Tools] ToolUsesPerBench` value must be
-> set again). Everything else is **hardcoded** (tuned during
+> The three settings live in a `[General]` section (values from the old unnamed section or `[Tools]`
+> must be set again). Everything else is **hardcoded** (tuned during
 > development): random attacks / binds / tools /
 > spells / taunt / Cross Stitch / spell silk refund / Plasmium Phial boost / Rune Rage damage
 > doubling are always on and only apply to the Chaos crest; tool

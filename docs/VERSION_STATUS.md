@@ -80,3 +80,12 @@
 - 0.2.4 发布 DLL：Thunderstore `LIFELAN/RandomCrestMod` 0.2.4 + GitHub tag `v0.2.4`
 - 0.2.3 发布 DLL 备份：`C:/Users/fuenlai/Desktop/rc_backup_0.2.3/RandomCrestMod.dll`
 - v2 重写说明：`docs/REWRITE.md`（仓库内）
+
+## 六、0.2.5（配置分节修复）
+
+- 三个配置项从**无名分组 `[]`** 改到命名分组 **`[General]`**。
+- 原因：r2modman 的配置解析会丢掉分节名为空的分组（`sections.filter(s => s.sectionName !== "")`），
+  导致设置无法在 r2modman 里管理；游戏内 ConfigurationManager 则能显示空分节，所以之前只在游戏内可见。
+- 代价：游戏内 ConfigurationManager 会多显示一个 `General` 标题。
+- 兼容性：旧 `[]` / `[Tools]` 里的值会变成孤儿，需重新设置（数值默认不变）。
+- 纯配置分节改动，无玩法变化。
