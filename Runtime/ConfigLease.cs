@@ -133,7 +133,22 @@ internal static class ConfigLease
 
         RandomCrestModPlugin.Log($"[ConfigLease] release {owner}.");
         ClearState();
-        Restore(hero);
+
+        // Restoring the real crest fires "HC CONFIG UPDATED", which globally cancels the Sprint FSM.
+        // While the hero is sprinting / sliding / wall-running / mantling that cancellation strands the
+        // hero: control stays off and the velocity is kept, so she is flung out of the scene (the
+        // long-standing "nailed to the wall then flies out" bug). Swallow the event for that restore;
+        // the real moveset is still put back.
+        var wasQuiet = _quiet;
+        _quiet = wasQuiet || ConfigPool.IsSprintOrSkid(hero);
+        try
+        {
+            Restore(hero);
+        }
+        finally
+        {
+            _quiet = wasQuiet;
+        }
     }
 
     /// <summary>Drops whatever is held, for death / respawn / scene transitions / shutdown.</summary>

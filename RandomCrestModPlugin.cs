@@ -50,7 +50,7 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 
     internal static readonly bool EnableSpellSilkRefund = true;
 
-    internal static readonly bool DebugLogging = true;
+    internal static readonly bool DebugLogging = false;
 
     /// <summary>Chance (0-1) that a random bind resolves to the refused (cursed) bind.</summary>
     internal const float CursedBindChance = 0.05f;

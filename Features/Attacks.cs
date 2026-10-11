@@ -207,7 +207,7 @@ internal static class Attacks
             || cs.downSpikeBouncing
             || cs.downSpikeRecovery
             || cs.isToolThrowing
-            || ConfigPool.IsSprintOrDash(cs)
+            || ConfigPool.IsSprintOrSkid(hero)
             || crestBusy;
 
         if ((!busy && elapsed >= _attackMinHold) || elapsed > AttackTimeout)

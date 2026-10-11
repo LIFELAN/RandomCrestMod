@@ -100,12 +100,25 @@ internal static class Taunt
                 // The Beast config could not be taken: play Standard so voice and action still match.
                 _flavour = TauntFlavour.Standard;
             }
-            else if (_flavour != TauntFlavour.Beast && hero != null)
+
+            // A non-Beast taunt plays the equipped crest's own taunt via GetHeroAttackObject(TauntSlash).
+            // If a lingering sprint / attack still holds the Beast (Warrior) crest, that action would be
+            // the Beast battle-cry while the voice said Standard. Drop that holder so the real crest is
+            // used and voice + action agree again (ConfigLease does the restore quietly while sprinting).
+            if (_flavour != TauntFlavour.Beast && hero != null)
             {
                 ConfigLease.Release(hero, ConfigOwner.Taunt);
+
+                if (ConfigLease.IsHeld && ReferenceEquals(ConfigLease.SpoofCrest, BeastCrest))
+                {
+                    ConfigLease.Release(hero, ConfigLease.Owner);
+                }
             }
 
-            RandomCrestModPlugin.Log($"[RandomTaunt] rolled '{_rolled}', playing '{_flavour}'.");
+            RandomCrestModPlugin.Log(
+                $"[RandomTaunt] rolled '{_rolled}', playing '{_flavour}' "
+                + $"(held={ConfigLease.IsHeld}, owner={ConfigLease.Owner}, "
+                + $"spoof={(ConfigLease.SpoofCrest != null ? ConfigLease.SpoofCrest.name : "null")}).");
         }
         catch (Exception e)
         {

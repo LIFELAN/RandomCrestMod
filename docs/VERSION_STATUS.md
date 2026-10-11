@@ -7,7 +7,7 @@
 
 | 项 | 0.2.3 | 0.2.4（v2 重构版） |
 |---|---|---|
-| 状态 | **已发布** | **已完成、已测试通过，未发布** |
+| 状态 | **已发布** | **已发布（v2 重构版）** |
 | 位置 | 主仓库 `E:/Agent/Pi/RandomCrestMod`（git `master @ f288ae9`，tag `v0.2.3`） | `C:/Users/fuenlai/Desktop/RandomCrestMod-v2`（无 git） |
 | 版本号 | `0.2.3` | `0.2.4` |
 | 架构 | 平铺 `.cs`，一堆 `_active/_bindActive/_dashActive/...` 标志 | `Core / Runtime / Features / Presentation` + 单元测试 |
@@ -38,6 +38,13 @@
   - **针管雕像奖励封顶 20**（`RewardLedger.StatueRespectsCap = true`）。理由：不破坏游戏原有消耗品上限机制。
     （该奖励本身是彩蛋性质，需装备纷乱时用随机抽到的针管造成伤害才触发。）
 
+- 相对 0.2.3 的**bug 修复**（用户复现并验证）：
+  - **疾风步踩墙沿丢控制权 / 飞出去**（长期存在）：墙 / mantle 状态下不再误释放配置（`Attacks.TickAttack` 用
+    `IsSprintOrSkid(hero)` 判断忙），还原时静默（`ConfigLease.Release` 在冲刺状态下不发 `HC CONFIG UPDATED`），
+    Sprint FSM 不再被取消。
+  - **落地后第一时间嘲讽声音 / 动作不符**：非野兽嘲讽时若当前配置是 Warrior（野兽），先放掉持有者
+    （`Taunt.Roll`），动作与声音一致。
+
 - 相对 0.2.3 的**结构性改进**（正常游玩不可感知，只提升鲁棒性 / 可维护性）：
   - `ConfigLease` 先清状态再 `Restore` → 异常不再残留伪装。
   - 攻击请求按帧失效（`_requestFrame` + `Restoring`）→ 无 `_pending` 残留。
@@ -53,7 +60,7 @@
 - 测试状态（2026-10-11）：
   - 编译 0 警告 0 错误；`CoreTests` 38/38 通过。
   - 游戏内已确认：冲刺斩随机、连续/滑步缚丝每次随机、野兽缚丝特效完整、攻击始终随机、
-    嘲讽不抢占、雕像封顶 20 生效。用户继续跑完整流程测试。
+    嘲讽不抢占、雕像封顶 20 生效；**卡死修复（Bug1）与嘲讽声音/动作修复（Bug2）用户已实测通过**。
 
 - 发布前待办：
   1. 关 `RandomCrestModPlugin.DebugLogging`（当前测试用 `true`）。
@@ -61,17 +68,15 @@
   3. CHANGELOG 0.2.4、README（雕像上限已改）、确认版本号。
   4. `dotnet tcli build` → 推 `v0.2.4` tag（触发 Thunderstore CI）+ 建 GitHub Release。
 
-## 四、发布决策（用户 2026-10-11 定）
+## 四、发布决策
 
-- **不主动发布 0.2.4。**
-- 若收到 **0.2.3 的 bug 反馈**，且该问题在 **0.2.4 已修复** → 再考虑发布 0.2.4。
-- 若无反馈 → 保持 0.2.3 在线；0.2.4 仅作为本地优化分支保留。
-- 判断依据：两版正常游玩手感基本无差（唯一差异是雕像封顶），0.2.4 的价值在代码结构与抗异常能力，
-  因此以“是否修掉了 0.2.3 的反馈 bug”作为是否发布的触发条件。
+- 2026-10-11：用户复现并确认修复了上述两个 bug（疾风步卡死、嘲讽声音/动作），触发条件满足，
+  **0.2.4 已发布**（原计划为“不主动发布，除非 0.2.3 反馈的 bug 在 0.2.4 已修”）。
+- 后续版本判断依据不变：正常游玩手感与 0.2.3 基本无差（唯一差异是雕像封顶 20）；0.2.4 的价值在
+  代码结构与抗异常能力。
 
 ## 五、资产位置
 
+- 0.2.4 发布 DLL：Thunderstore `LIFELAN/RandomCrestMod` 0.2.4 + GitHub tag `v0.2.4`
 - 0.2.3 发布 DLL 备份：`C:/Users/fuenlai/Desktop/rc_backup_0.2.3/RandomCrestMod.dll`
-- 0.2.4 测试 DLL：已装到 `BepInEx/plugins/lifelan-RandomCrestMod/`（md5 `1e07b47b…`）
-- v2 重写说明：`C:/Users/fuenlai/Desktop/RandomCrestMod-v2/docs/REWRITE.md`
-- 0.2.3 备份也可从 GitHub tag `v0.2.3` / Thunderstore 0.2.3 重新获取。
+- v2 重写说明：`docs/REWRITE.md`（仓库内）

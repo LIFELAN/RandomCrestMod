@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.4
+
+- Fixed a long-standing stall: pressing the sprint (疾风步) right as Hornet stepped onto a wall
+  corner could take control away and fling her along until she hit a wall. The random crest was
+  being restored in the middle of the Sprint FSM's wall-run / mantle states, and the game's
+  "HC CONFIG UPDATED" handler aborts that FSM. The restore now waits for the Sprint FSM to go idle
+  and is done quietly, so the wall action plays out and control comes back.
+- Fixed the taunt voice / action mismatch that could happen right after a sprint or a high fall:
+  taunting as you landed could play the Beast voice over a Standard slash. A lingering sprint could
+  still hold the Beast (Warrior) crest that decides the taunt's own action, so a non-Beast roll now
+  drops such a holder and voice + action agree again.
+- The Needle Phial's Hornet Statuette reward is now capped at the game's consumable cap (20) instead
+  of stacking without limit.
+- Internal rewrite with no gameplay change: the code is split into `Core` (pure rules + unit tests),
+  `Runtime` (a single `ConfigLease` owner for the crest config), `Features` and `Presentation`. The
+  randomness, numbers, config options, HUD and all art are unchanged from 0.2.3.
+
 ## 0.2.3
 
 - Fixed the sprint dash stab (冲刺斩) always falling back to the Hunter moveset instead of the
