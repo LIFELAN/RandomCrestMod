@@ -119,6 +119,26 @@ internal static class ConfigPool
             || cs.shadowDashing;
     }
 
+    /// <summary>
+    /// True while a config swap must stay silent. The Sprint FSM has a global
+    /// <c>HC CONFIG UPDATED -> Cancel All -> Reset -> Reset Nail Charge State</c> handler that aborts a
+    /// running sprint and clears <c>allowNailChargingWhileRelinquished</c>. Firing the event while
+    /// sprinting / charging a nail art / transitioning therefore either strands the hero (the old
+    /// sprint stall) or silently drops a held charge. "Busy" is: sprint / skid, nail charging, or a
+    /// scene transition.
+    /// </summary>
+    internal static bool ShouldSwapQuietly(HeroController? hero)
+    {
+        if (hero == null)
+        {
+            return false;
+        }
+
+        var cs = hero.cState;
+        return (cs != null && (cs.nailCharging || cs.transitioning))
+            || IsSprintOrSkid(hero);
+    }
+
     /// <summary>The Sprint FSM's own state, read directly so it works even when the cState flags lag.</summary>
     internal static bool SprintFsmBusy(HeroController hero)
     {

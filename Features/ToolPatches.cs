@@ -35,7 +35,9 @@ internal static class GetBoundAttackToolPatch
     [HarmonyPostfix]
     private static void Postfix(AttackToolBinding binding, ToolEquippedReadSource readSource, ref ToolItem? __result)
     {
-        if (readSource != ToolEquippedReadSource.Active || __result == null || !ToolPool.IsPicking)
+        // A custom tool override (quests / the dart minigame) must keep the game's forced tool.
+        if (readSource != ToolEquippedReadSource.Active || __result == null || !ToolPool.IsPicking
+            || ToolItemManager.IsCustomToolOverride)
         {
             return;
         }
@@ -74,7 +76,7 @@ internal static class GetAttackToolBindingPatch
     [HarmonyPostfix]
     private static void Postfix(ToolItem tool, ref AttackToolBinding? __result)
     {
-        if (__result == null && ToolPool.IsSpoofed(tool))
+        if (__result == null && !ToolItemManager.IsCustomToolOverride && ToolPool.IsSpoofed(tool))
         {
             __result = ToolPool.SpoofBinding;
         }
@@ -119,7 +121,7 @@ internal static class CanThrowToolPatch
     [HarmonyPrefix]
     private static bool Prefix(ToolItem tool, AttackToolBinding binding, bool reportFailure, ref bool __result)
     {
-        if (!ToolBudget.IsOutOfUses(tool))
+        if (ToolItemManager.IsCustomToolOverride || !ToolBudget.IsOutOfUses(tool))
         {
             return true;
         }
@@ -146,8 +148,10 @@ internal static class DidUseAttackToolPatch
     {
         ThrowBarrage.NotifyConsumed();
 
+        // The custom override owns the tool's own counter; do not spend the shared budget on it.
         var used = WillThrow(__instance);
-        if (used != null && used.Type == ToolItemType.Red && ToolPool.IsRed(used))
+        if (!ToolItemManager.IsCustomToolOverride
+            && used != null && used.Type == ToolItemType.Red && ToolPool.IsRed(used))
         {
             ToolBudget.Consume(used);
         }

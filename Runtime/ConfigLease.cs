@@ -72,6 +72,14 @@ internal static class ConfigLease
             return false;
         }
 
+        // Never let a swap fire "HC CONFIG UPDATED" while the Sprint FSM would cancellably react to it
+        // (sprint / nail charge / transition). See ConfigPool.ShouldSwapQuietly.
+        if (!quiet && ConfigPool.ShouldSwapQuietly(hero))
+        {
+            DiagForceQuiet(owner, "acquire", hero);
+            quiet = true;
+        }
+
         var original = _owner == ConfigOwner.None ? hero.CurrentConfigGroup : _original;
 
         // Replacing a moveset that is already installed: put the real one back first. Installing the new
@@ -137,10 +145,17 @@ internal static class ConfigLease
         // Restoring the real crest fires "HC CONFIG UPDATED", which globally cancels the Sprint FSM.
         // While the hero is sprinting / sliding / wall-running / mantling that cancellation strands the
         // hero: control stays off and the velocity is kept, so she is flung out of the scene (the
-        // long-standing "nailed to the wall then flies out" bug). Swallow the event for that restore;
-        // the real moveset is still put back.
+        // long-standing "nailed to the wall then flies out" bug). The same event also runs the Sprint
+        // FSM's "Reset Nail Charge State", which clears a held nail charge on a scene transition.
+        // Swallow the event for that restore; the real moveset is still put back.
+        var forceQuiet = ConfigPool.ShouldSwapQuietly(hero);
+        if (forceQuiet && !_quiet && hero != null)
+        {
+            DiagForceQuiet(owner, "release", hero);
+        }
+
         var wasQuiet = _quiet;
-        _quiet = wasQuiet || ConfigPool.IsSprintOrSkid(hero);
+        _quiet = wasQuiet || forceQuiet;
         try
         {
             Restore(hero);
@@ -161,7 +176,31 @@ internal static class ConfigLease
 
         RandomCrestModPlugin.Log($"[ConfigLease] abort {_owner}.");
         ClearState();
-        Restore(hero);
+
+        // Abort runs on death / respawn / scene change. Those states re-init the hero's FSMs on their
+        // own, so a "HC CONFIG UPDATED" here is never needed and only risks cancelling the Sprint FSM
+        // and clearing a held nail charge. Always restore silently.
+        var wasQuiet = _quiet;
+        _quiet = true;
+        try
+        {
+            Restore(hero);
+        }
+        finally
+        {
+            _quiet = wasQuiet;
+        }
+    }
+
+    /// <summary>Diagnostic for forced-quiet swaps; remove once the fix is verified.</summary>
+    private static void DiagForceQuiet(ConfigOwner owner, string phase, HeroController hero)
+    {
+        var cs = hero.cState;
+        RandomCrestModPlugin.LogDiag(
+            $"[ConfigLease] forcing quiet {phase} ({owner}) "
+            + $"nailCharging={(cs != null && cs.nailCharging)} "
+            + $"transitioning={(cs != null && cs.transitioning)} "
+            + $"sprint={ConfigPool.IsSprintOrSkid(hero)}.");
     }
 
     private static void ClearState()

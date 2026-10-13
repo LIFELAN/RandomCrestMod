@@ -21,7 +21,18 @@ internal static class QuietSwapPatches
     [HarmonyPrefix]
     private static bool SendEventToGameObject_Prefix(string eventName)
     {
-        return !(ConfigLease.Quiet && eventName == "HC CONFIG UPDATED");
+        if (eventName != "HC CONFIG UPDATED" || !ConfigLease.Quiet)
+        {
+            return true;
+        }
+
+        var hero = HeroController.instance;
+        var cs = hero != null ? hero.cState : null;
+        RandomCrestModPlugin.LogDiag(
+            "[QuietSwap] swallowed HC CONFIG UPDATED "
+            + $"(nailCharging={(cs != null && cs.nailCharging)} "
+            + $"transitioning={(cs != null && cs.transitioning)}).");
+        return false;
     }
 }
 

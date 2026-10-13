@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.2.6
+
+- Fixed the charge slash (蓄力斩) losing its charge when Hornet crossed a scene transition: the
+  random crest being restored fires "HC CONFIG UPDATED", and the Sprint FSM's global handler for that
+  event runs "Reset Nail Charge State". Every config swap is now silent while a nail art is charging
+  or while the hero is transitioning, and the event is never fired on death / respawn / scene change.
+- Fixed a skid bind (滑步缚丝) followed by a sprint dash stab (冲刺斩) reusing the bind's crest. The
+  bind keeps holding the moveset through the following sprint, so the dash stab skipped its re-roll
+  and inherited the bind's crest. A real dash stab now takes the moveset over and re-rolls.
+- Hardening: a moveset is no longer installed through a scene transition at all (the sprint moveset
+  and bind attempts both skip while transitioning), which also removes a per-frame restore/re-acquire
+  churn during transitions.
+- The three config option descriptions are now bilingual (Chinese + English).
+- Fixed the tool randomiser hijacking the game's forced-tool segments (e.g. Loddy's dart game): the
+  game forces a tool via a custom override, and the randomiser was replacing it and spending the
+  shared tool budget. Any active override now keeps the game's tool and its own counter, so the
+  segment plays out as vanilla (the HUD already hid the spend, so it looked free but was not).
+- Fixed the Extractor (储液针管) being billed by the shared tool budget. It is a vanilla-equip quest
+  tool whose vanilla use does not spend `AmountLeft`; the budget no longer overwrites its count,
+  drains the shared pool when it is used, or forces its bench refill. It keeps its vanilla state and
+  refill.
+- The HUD tool icon now shows the real tool during a forced-tool segment (e.g. Loddy's dart game)
+  instead of the Chaos random icon.
+
 ## 0.2.5
 
 - The three settings now live in a named `[General]` section instead of an unnamed one. r2modman's

@@ -101,8 +101,11 @@ internal static class Attacks
             var group = ConfigPool.PickForChargeSlash(hero);
             if (group != null)
             {
-                ConfigLease.Acquire(hero, ConfigOwner.NailArt, group, quiet: false);
-                RandomCrestModPlugin.Log($"Random charge slash -> '{NameOf(group)}'.");
+                // Quiet during a sprint / nail charge / transition so the Sprint FSM's global
+                // "HC CONFIG UPDATED" handler cannot abort it or reset the nail charge state.
+                var quiet = ConfigPool.ShouldSwapQuietly(hero);
+                ConfigLease.Acquire(hero, ConfigOwner.NailArt, group, quiet);
+                RandomCrestModPlugin.Log($"Random charge slash -> '{NameOf(group)}' (quiet={quiet}).");
             }
         }
         catch (Exception e)
@@ -121,7 +124,16 @@ internal static class Attacks
 
         var fromDashAttack = hero.sprintFSM != null && hero.sprintFSM.ActiveStateName == DashStartState;
         var owner = ConfigLease.Owner;
-        if (owner != ConfigOwner.Dash && !(owner == ConfigOwner.None && fromDashAttack))
+
+        // A real sprint dash stab always gets its own roll. A lingering Bind (skid bind / 滑步缚丝) would
+        // otherwise make the dash slash inherit the bind's crest: the bind keeps holding the lease through
+        // the following sprint, so the crest spoof and the Sprint FSM's branch both still report the bind's
+        // crest. Take the lease from it, exactly like a normal attack after a bind already does.
+        var dashStab = owner == ConfigOwner.Dash
+            || (fromDashAttack
+                && !hero.cState.isBinding
+                && (owner == ConfigOwner.None || owner == ConfigOwner.Bind || owner == ConfigOwner.Taunt));
+        if (!dashStab)
         {
             return;
         }
@@ -134,14 +146,14 @@ internal static class Attacks
         try
         {
             var group = ConfigPool.PickAny(hero);
-            if (group == null || !ConfigLease.Acquire(hero, ConfigOwner.Dash, group, quiet: true))
+            if (group == null || !ConfigLease.Acquire(hero, ConfigOwner.Dash, group, quiet: true, force: true))
             {
                 return;
             }
 
             SetDashStabVariables(hero, group);
             _dashLastActive = Time.time;
-            RandomCrestModPlugin.Log($"Random dash stab -> '{NameOf(group)}' (re-roll).");
+            RandomCrestModPlugin.Log($"Random dash stab -> '{NameOf(group)}' (re-roll, was {owner}).");
         }
         catch (Exception e)
         {
@@ -247,7 +259,11 @@ internal static class Attacks
 
     private static void TryStartSprintMoveset(HeroController hero)
     {
-        if (!hero.cState.isSprinting || !Gate.Attacks)
+        // Never (re)install a moveset during a scene transition: the runner aborts the lease every frame
+        // while transitioning, so without this guard the config would be restored and re-acquired each
+        // frame (observed as ~100 swallowed "HC CONFIG UPDATED" events per transition).
+        var cs = hero.cState;
+        if (!cs.isSprinting || cs.transitioning || !Gate.Attacks)
         {
             return;
         }

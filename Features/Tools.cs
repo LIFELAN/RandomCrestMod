@@ -126,7 +126,13 @@ internal static class ToolPool
         _built = false;
     }
 
-    internal static bool IsRed(ToolItem? tool) => tool != null && RedPool.Contains(tool);
+    /// <summary>
+    /// True for a red tool the shared budget owns. Vanilla-equip quest tools (the Extractor) are
+    /// deliberately excluded: vanilla never spends their <c>AmountLeft</c>, so writing it would
+    /// overwrite their real state (and using the tool would drain the shared budget).
+    /// </summary>
+    internal static bool IsRed(ToolItem? tool) =>
+        tool != null && !IsVanillaEquip(tool) && RedPool.Contains(tool);
 
     internal static bool IsVanillaEquip(ToolItem? tool)
     {
@@ -259,10 +265,19 @@ internal static class ToolBudget
             Reset();
         }
 
-        // The Rosary Cannon spends its own saved ammo, so keep it at capacity for random picks.
-        if (ToolPool.RosaryCannon != null)
+        // Keep the Rosary Cannon linked to the shared usage count (so using tools consumes its charge and
+        // the throw gate agrees). If a manual bench recharge pushed the cannon's own charge above the
+        // pool, adopt it into the pool first (capped at the shared capacity), then mirror the pool back.
+        var cannon = ToolPool.RosaryCannon;
+        if (cannon != null)
         {
-            SetAmount(ToolPool.RosaryCannon, Capacity);
+            var charge = cannon.SavedData.AmountLeft;
+            if (charge > _left)
+            {
+                _left = Math.Min(charge, Capacity);
+            }
+
+            SetAmount(cannon, _left);
         }
     }
 
@@ -306,13 +321,21 @@ internal static class ToolBudget
     {
         foreach (var tool in ToolPool.RedTools)
         {
-            SetAmount(tool, _left);
+            if (ToolPool.IsRed(tool))
+            {
+                SetAmount(tool, _left);
+            }
         }
     }
 
     /// <summary>Gives a picked tool the shared count, so the vanilla empty check agrees with the budget.</summary>
     internal static void Mirror(ToolItem tool)
     {
+        if (!ToolPool.IsRed(tool))
+        {
+            return;
+        }
+
         SetAmount(tool, _left);
     }
 
@@ -336,6 +359,11 @@ internal static class ToolBudget
 
         foreach (var tool in ToolPool.RedTools)
         {
+            if (ToolPool.IsVanillaEquip(tool))
+            {
+                continue;
+            }
+
             try
             {
                 SavedResources[tool] = (ToolItem.ReplenishResources)_replenishField.GetValue(tool);
@@ -478,7 +506,8 @@ internal static class ThrowBarrage
     {
         try
         {
-            if (!Gate.Tools)
+            // A custom tool override (quests / the dart minigame) owns the throw: never chain it.
+            if (!Gate.Tools || ToolItemManager.IsCustomToolOverride)
             {
                 return;
             }
@@ -543,7 +572,7 @@ internal static class ThrowBarrage
 
         var cs = hero != null ? hero.cState : null;
         if (hero == null || cs == null || cs.dead || cs.hazardRespawning || cs.transitioning
-            || ToolBudget.Left <= 0 || !StatueHeld)
+            || ToolBudget.Left <= 0 || !StatueHeld || ToolItemManager.IsCustomToolOverride)
         {
             End(hero);
         }

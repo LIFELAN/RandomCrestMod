@@ -52,6 +52,12 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
 
     internal static readonly bool DebugLogging = false;
 
+    /// <summary>
+    /// Temporary diagnostics for the config-swap quieting (sprint / nail charge / scene transition).
+    /// Keep on while verifying the nail-charge fix; turn off before release.
+    /// </summary>
+    internal static readonly bool ConfigSwapDiagnostics = false;
+
     /// <summary>Chance (0-1) that a random bind resolves to the refused (cursed) bind.</summary>
     internal const float CursedBindChance = 0.05f;
 
@@ -86,20 +92,23 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
             "ToolUsesPerBench",
             16,
             new ConfigDescription(
-                "Base shared tool budget when resting at a bench. Each Tool Pouch upgrade adds 25% (rounded). Refills are free.",
+                "坐长椅时共享的工具基础次数；每级工具袋 +25%（四舍五入），补给免费。\n"
+                + "Base shared tool budget when resting at a bench. Each Tool Pouch upgrade adds 25% (rounded). Refills are free.",
                 new AcceptableValueRange<int>(1, 999)));
 
         CursedBindEnabled = Config.Bind(
             section,
             "CursedBind",
             true,
-            "When true, a random bind has a 5% chance to resolve to the Cursed crest's refused bind.");
+            "开启后，每次随机缚丝有 5% 概率变为诅咒（拒绝）缚丝。\n"
+            + "When true, a random bind has a 5% chance to resolve to the Cursed crest's refused bind.");
 
         ParryAutoCounterAlwaysSucceeds = Config.Bind(
             section,
             "ParryAlwaysSucceed",
             false,
-            "Cross Stitch auto counter (stance expires without a hit): false = 50% to land, true = always lands.");
+            "十字绣自动反击（架式自然结束、未被打中时）：false = 50% 命中，true = 必定命中。真格挡不受影响，永远反击。\n"
+            + "Cross Stitch auto counter (stance expires without a hit): false = 50% to land, true = always lands. A real parry is unaffected and always counters.");
 
         _harmony = new Harmony(Info.Metadata.GUID);
         _harmony.PatchAll(typeof(RandomCrestModPlugin).Assembly);
@@ -176,6 +185,15 @@ public partial class RandomCrestModPlugin : BaseUnityPlugin
     internal static void Log(string message)
     {
         if (DebugLogging)
+        {
+            Instance.Logger.LogInfo(message);
+        }
+    }
+
+    /// <summary>Diagnostic log for config-swap quieting; on while <see cref="ConfigSwapDiagnostics"/> is true.</summary>
+    internal static void LogDiag(string message)
+    {
+        if (ConfigSwapDiagnostics)
         {
             Instance.Logger.LogInfo(message);
         }

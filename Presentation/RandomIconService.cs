@@ -31,8 +31,8 @@ internal static class RandomIconService
 
         if (tool.Type == ToolItemType.Red && Gate.Tools)
         {
-            // Quest tools keep their real HUD icon (they are not randomised when equipped).
-            if (ToolPool.IsVanillaEquip(tool))
+            // Quest tools keep their real HUD icon, and so does any forced-tool segment (dart game etc.).
+            if (ToolPool.IsVanillaEquip(tool) || ToolItemManager.IsCustomToolOverride)
             {
                 return null;
             }

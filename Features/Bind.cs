@@ -91,7 +91,9 @@ internal static class Bind
 
         // A bind is already running: keep its crest instead of re-rolling mid-bind (that would swap the
         // moveset out from under the bind FSM and cancel the rage / Shaman effects).
-        if (hero.cState != null && hero.cState.isBinding)
+        // Also refuse to start during a scene transition: the hero's FSMs are being reset there, so
+        // installing a moveset is pointless and only risks the Bind FSM / crest roots disagreeing.
+        if (hero.cState != null && (hero.cState.isBinding || hero.cState.transitioning))
         {
             return;
         }

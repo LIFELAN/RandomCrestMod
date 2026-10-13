@@ -5,11 +5,15 @@
 
 ## 零、版本 & 状态（每次开工先看这里）
 
-> **当前：v0.2.3 已发布（Thunderstore + GitHub tag）。** 本轮改动（冲刺斩 / 滑步缚丝修复、HUD 出现消失动画、
-> 新增配置项）见下方与“五之十”“五之十一”。
+> **当前：v0.2.5 已发布（Thunderstore + GitHub tag）。0.2.6 修好待发布（工作区未提交）。**
+> 0.2.6 内容：①蓄力斩过场清零修复；②滑步缚丝后冲刺斩串味修复；③过场期间不再装配置（加固）；
+> ④配置说明中英双语；⑤强制工具桥段（飞镖任务）保持原版 + 任务工具图标；⑥储液针管（Extractor）绕过共享预算；
+> ⑦念珠炮充能与共享次数同步（长按连发保留）。详见下方“五之十二”“五之十三”。
 >
-> **0.2.4（v2 重构版）：桌面 `RandomCrestMod-v2`，已完成并测试通过，未发布。**
-> 两版（0.2.3 / 0.2.4）的状态、差异与发布决策快照见 **`docs/VERSION_STATUS.md`**。
+> **发布前必做**：`RandomCrestModPlugin.DebugLogging` / `ConfigSwapDiagnostics` 改回 `false`；
+> 版本号 `Directory.Build.props` / `thunderstore.toml` → `0.2.6`；CHANGELOG 的 `Unreleased` 段落改成 `0.2.6`。
+>
+> 历史版本（0.2.3 / 0.2.4 / 0.2.5）的状态、差异与发布决策快照见 **`docs/VERSION_STATUS.md`**。
 
 ### 本轮改动（v0.2.3，已发布）
 
@@ -615,6 +619,42 @@ dotnet build -c Release
   串行化，能进来就一定是新缚丝，必须重掷）；同时在重掷时补 `_bindCancelSent = false;`，让新缚丝重新拥有落水安全网。
   **不要**去改 `TickDash` 里那句 `_bindActive` 守卫——它是 v0.1.1 修穿水 / buff 的关键，删了会退回旧 bug。
 - 待用户完整测试。
+
+## 五之十二、蓄力斩过场清零 + 滑步缚丝后冲刺斩串味（0.2.6，未发布）
+
+> 完整版（含日志证据、发布清单、观察项）见 **`docs/VERSION_STATUS.md` 第七节**；这里只记必须记牢的机制。
+
+1. **蓄力斩过场清零**：Sprint FSM 全局 `HC CONFIG UPDATED -> Cancel All -> Reset -> Reset Nail Charge State`，
+   后者调 `SetAllowNailChargingWhileRelinquished`（enum 0）清掉“交出控制权保留蓄力”。所以任何在
+   **蓄力中 / 过场中** 发 `HC CONFIG UPDATED` 的换配置都会清零 → 用 `ConfigPool.ShouldSwapQuietly(hero)`
+   （= `IsSprintOrSkid` 或 `cState.nailCharging` 或 `cState.transitioning`）：`Acquire` 强制静默、
+   `Release` 用它、`Abort` 恒静默、`OnNailArtConfirmed` 用它。
+2. **滑步缚丝后冲刺斩串味**：缚丝租约在冲刺期间被保留，`OnDashStabStarted` 遇到 `owner == Bind` 会早退
+   → 不重掷、不刷 `SetDashStabVariables`，spoof 仍是缚丝纹章。修法：真·冲刺斩
+   （`fromDashAttack && !isBinding`）用 `force` 抢权重掷，和普通攻击一致。**安全性**：抢权要求 `!isBinding`，
+   而给 buff 的 `BindCompleted()` 在 `Send Bind Event`、早于清 `isBinding` 的 `End Bind`，所以 buff 已结算。
+3. **不要**在过场时再装配置：`TryStartSprintMoveset` / `Bind.BeginAttempt` 已加 `transitioning` 守卫。
+4. **发布前**：`DebugLogging=false`、`ConfigSwapDiagnostics=false`。
+
+## 五之十三、工具问题修复（0.2.6，未发布）
+
+> 完整版见 **`docs/VERSION_STATUS.md` 第七节 5/6**；这里只记要点。
+
+1. **强制工具桥段保持原版**：游戏用 FSM 动作 `SetCustomToolOverride`（`full.cs:545634`）强制覆盖攻击工具，
+   开关是 `ToolItemManager.IsCustomToolOverride`（`full.cs:206000`）。mod 之前只检查 `IsPicking`，会把它随机掉并扣共享次数。
+   修法：`IsCustomToolOverride` 为真时，`GetBoundAttackToolPatch` / `GetAttackToolBindingPatch` /
+   `DidUseAttackToolPatch` / `ThrowBarrage` 全部让路。**任何**强制工具桥段（飞镖任务 / 任务 / 教程）都自动豁免。
+2. **Extractor 绕过共享预算**：`IsRed` 对 `VanillaEquipTools` 返回 false；`SyncAll` / `Mirror` / `BeginFreeRefill` 跳过它们。
+   原版 Extractor 的 FSM 无 `CustomToolUsage`、`DidUseAttackTool` 只在 `!IsCustomUsage` 时扣 `AmountLeft`（`full.cs:50082`），
+   所以 vanilla 用它不消耗；mod 不应拥有它的 `AmountLeft`。
+3. **Extractor 控制权安全（结论：无风险）**：`_dump_syringe.py` 确认 Extractor 是 `ToolItemBasic`，
+   `baseStorageAmount=0`、`isCustomUsage=0`、usage 固定为 `EXTRACTOR`。`baseStorageAmount==0` 时
+   `CheckIfToolEquipped` 直接返回 true、`ToolItemBasic.Usage` 不随 `AmountLeft` 变，故本改动不可能影响它的 FSM。
+   如果“无法操作”再现，优先看 `LogOutput.log` 里 Tool Attacks FSM 是否卡在 `Ex Charged`（等 `EXTRACTOR` 事件）。
+4. **念珠炮充能与共享次数联动**：`Tick` 里若炮的 `AmountLeft > _left`（玩家手动充能）就把 `_left` 提升为 `Math.Min(炮的充能, Capacity)`
+   （手动充能回灌到共享次数，封顶共享容量）；然后 `SetAmount(炮, _left)`。`IsOutOfUses`/`SyncAll`/`Mirror` 恢复原样。
+   结果：炮与共享次数联动（用道具一起降、门控一致、`Shoot Loop` 连发、坐椅子补），手动充能不再被覆盖。
+   上一版的 `Math.Max` + `IsOutOfUses`/`SyncAll`/`Mirror` 特殊化已撤销（它会让“用道具消耗炮充能”失效）。
 
 ## 六、HUD / 存档界面美术
 
